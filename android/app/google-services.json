@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "175240204876",
+    "project_id": "fitbit-project-58078",
+    "storage_bucket": "fitbit-project-58078.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:175240204876:android:dcdb99cef409892e269ae9",
+        "android_client_info": {
+          "package_name": "com.example.fitbit"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBiivmc2-kFsDby8cGBX68Ft1QURSPY2l8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
