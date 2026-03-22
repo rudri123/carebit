@@ -100,7 +100,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                           // Delete Account
                           _buildActionButton(
-                            label: '🔴  Delete Account',
+                            label: 'Delete Account',
                             textColor: const Color(0xFFEF4444),
                             bgColor: const Color(0xFFFFF1F2),
                             borderColor: const Color(0xFFFCA5A5),
@@ -111,7 +111,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           GestureDetector(
                             onTap: () => _handleSignOut(context),
                             child: _buildActionButton(
-                              label: '←  Log Out',
+                              label: 'Log Out',
                               textColor: const Color(0xFF6B7280),
                               bgColor: const Color(0xFFECFDF5),
                               borderColor: const Color(0xFFE5E7EB),
@@ -170,7 +170,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // ── Hero ──
   Widget _buildHero(User? user, String displayName, String email) {
     return Container(
-      height: 295,
+      height: 360,
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment(-0.7, -1),
@@ -208,17 +208,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const SizedBox(height: 40),
+                const SizedBox(height: 34),
 
                 // Avatar
                 Stack(
                   children: [
                     Container(
-                      width: 76, height: 76,
+                      width: 108, height: 108,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.18),
-                        borderRadius: BorderRadius.circular(38),
-                        border: Border.all(color: Colors.white.withOpacity(0.45), width: 3),
+                        color: Colors.white.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(54),
+                        border: Border.all(color: Colors.white.withOpacity(0.45), width: 4),
                         image: user?.photoURL != null
                             ? DecorationImage(
                                 image: NetworkImage(user!.photoURL!),
@@ -230,46 +230,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ? Center(
                               child: Text(
                                 displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
-                                style: const TextStyle(fontSize: 32, color: Colors.white, fontWeight: FontWeight.bold),
+                                style: const TextStyle(
+                                  fontSize: 42,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             )
                           : null,
                     ),
                     Positioned(
-                      bottom: 0, right: 0,
+                      bottom: 4, right: 0,
                       child: Container(
-                        width: 24, height: 24,
+                        width: 34, height: 34,
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 6, offset: const Offset(0, 2))],
+                          borderRadius: BorderRadius.circular(17),
+                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.18), blurRadius: 8, offset: const Offset(0, 2))],
                         ),
-                        child: const Center(child: Text('📷', style: TextStyle(fontSize: 11))),
+                        child: const Center(child: Icon(Icons.camera_alt_rounded,size: 16, color: Color(0xFF1E1B4B),)),
                       ),
                     ),
                   ],
                 ),
 
-                const SizedBox(height: 10),
+                const SizedBox(height: 18),
 
                 // Name
                 Text(displayName,
-                    style: const TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w900, fontSize: 20, color: Colors.white, letterSpacing: -0.3)),
-                const SizedBox(height: 4),
+                    style: const TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w900, fontSize: 28, color: Colors.white, letterSpacing: -0.4)),
+                const SizedBox(height: 6),
 
                 // Email
                 Text(email,
-                    style: TextStyle(fontFamily: 'DM Sans', fontSize: 11.5, color: Colors.white.withOpacity(0.6))),
-                const SizedBox(height: 16),
+                    style: TextStyle(fontFamily: 'DM Sans', fontSize: 15, color: Colors.white.withOpacity(0.65))),
+                const SizedBox(height: 24),
 
                 // Stats pill
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: 28),
-                  height: 58,
+                  height: 84,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.white.withOpacity(0.18)),
+                    color: Colors.white.withOpacity(0.10),
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(color: Colors.white.withOpacity(0.16)),
                   ),
                   child: Row(
                     children: [
@@ -296,9 +300,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(value, style: const TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w900, fontSize: 16, color: Colors.white)),
-            const SizedBox(height: 2),
-            Text(label, style: TextStyle(fontFamily: 'DM Sans', fontSize: 9, color: Colors.white.withOpacity(0.5))),
+            Text(value, style: const TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w900, fontSize: 24, color: Colors.white)),
+            const SizedBox(height: 4),
+            Text(label, style: TextStyle(fontFamily: 'DM Sans', fontSize: 13, color: Colors.white.withOpacity(0.58))),
           ],
         ),
       ),
@@ -320,13 +324,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Row(
         children: [
           Container(
-            width: 42, height: 42,
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.18),
               borderRadius: BorderRadius.circular(13),
               border: Border.all(color: Colors.white.withOpacity(0.25)),
             ),
-            child: const Center(child: Text('⌚', style: TextStyle(fontSize: 20))),
+            child: const Center(child: Icon(Icons.watch_rounded, color: Colors.white,size: 22,)),
           ),
           const SizedBox(width: 11),
           Expanded(
@@ -342,7 +347,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Container(
             width: 26, height: 26,
             decoration: BoxDecoration(color: Colors.white.withOpacity(0.18), borderRadius: BorderRadius.circular(8)),
-            child: const Center(child: Text('✓', style: TextStyle(color: Colors.white, fontSize: 13))),
+            child: const Center(child: Icon(Icons.check_rounded,color: Colors.white,size:18,)),
           ),
         ],
       ),
@@ -376,7 +381,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Container(
             width: 36, height: 36,
             decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(11)),
-            child: Center(child: Text(emoji, style: const TextStyle(fontSize: 16))),
+            child: Center(child: Text(emoji, style: const TextStyle(fontSize: 18))),
           ),
           const SizedBox(width: 11),
           Expanded(
@@ -393,7 +398,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Container(
               width: 26, height: 26,
               decoration: BoxDecoration(color: const Color(0xFFFFF1F2), borderRadius: BorderRadius.circular(8)),
-              child: const Center(child: Text('✏️', style: TextStyle(fontSize: 11))),
+              child: const Center(child: Icon(Icons.edit_rounded,size: 14,color: Color(0xFFEF4444),)),
             )
           else
             const Text('›', style: TextStyle(color: Color(0xFFD1D0E0), fontSize: 20)),
@@ -607,7 +612,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         border: Border.all(color: borderColor),
       ),
       child: Center(
-        child: Text(label, style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 12.5, color: textColor)),
+        child: Text(label, style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 14, color: textColor)),
       ),
     );
   }

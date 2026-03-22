@@ -30,52 +30,61 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildBottomNav() {
-    return Container(
-      height: 74,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: const Color(0xFFEEEDF8))),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF4338CA).withOpacity(0.06),
-            blurRadius: 16,
-            offset: const Offset(0, -4),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _navItem(0, '🏠', 'Home'),
-          _navItem(1, '❤️', 'Health'),
-          _navFab(),
-          _navItem(3, '🔔', 'Alerts'),
-          _navItem(4, '👤', 'Profile'),
-        ],
+    Widget _buildBottomNav() {
+    return SafeArea(
+      top: false,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF4338CA).withOpacity(0.10),
+              blurRadius: 18,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _navItem(0, Icons.home_rounded, 'Home'),
+            _navItem(1, Icons.favorite_rounded, 'Health'),
+            _navFab(),
+            _navItem(3, Icons.notifications_rounded, 'Alerts'),
+            _navItem(4, Icons.person_rounded, 'Profile'),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _navItem(int index, String emoji, String label) {
+  Widget _navItem(int index, IconData icon, String label) {
     final bool active = _currentIndex == index;
+
     return GestureDetector(
       onTap: () => setState(() => _currentIndex = index),
       behavior: HitTestBehavior.opaque,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(emoji, style: const TextStyle(fontSize: 18)),
-            const SizedBox(height: 2),
+            Icon(
+              icon,
+              size: 26,
+              color: active ? const Color(0xFF4338CA) : Colors.black87,
+            ),
+            const SizedBox(height: 4),
             Text(
               label,
               style: TextStyle(
                 fontFamily: 'DM Sans',
                 fontWeight: FontWeight.w700,
-                fontSize: 9,
-                color: active ? const Color(0xFF4338CA) : const Color(0xFFC4C2D6),
+                fontSize: 10,
+                color: active ? const Color(0xFF4338CA) : const Color(0xFF8E8CA8),
               ),
             ),
           ],
@@ -85,35 +94,64 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _navFab() {
+    final bool active = _currentIndex == 2;
+
     return GestureDetector(
       onTap: () => setState(() => _currentIndex = 2),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 44,
-            height: 44,
+            width: 58,
+            height: 58,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(20),
               gradient: const LinearGradient(
-                colors: [Color(0xFF1D4ED8), Color(0xFF4338CA), Color(0xFF7C3AED)],
+                colors: [
+                  Color(0xFF1D4ED8),
+                  Color(0xFF4338CA),
+                  Color(0xFF7C3AED),
+                ],
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF4338CA).withOpacity(0.45),
+                  color: const Color(0xFF4338CA).withOpacity(0.35),
                   blurRadius: 18,
-                  offset: const Offset(0, 6),
+                  offset: const Offset(0, 8),
                 ),
               ],
             ),
             child: const Center(
-              child: Text('＋', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w700)),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Icon(
+                    Icons.favorite_rounded,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                  Positioned(
+                    right: 7,
+                    top: 9,
+                    child: Icon(
+                      Icons.add,
+                      color: Colors.white,
+                      size: 12,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 2),
-          const Text(
+          const SizedBox(height: 4),
+          Text(
             'Add',
-            style: TextStyle(fontFamily: 'DM Sans', fontWeight: FontWeight.w700, fontSize: 9, color: Color(0xFFC4C2D6)),
+            style: TextStyle(
+              fontFamily: 'DM Sans',
+              fontWeight: FontWeight.w700,
+              fontSize: 10,
+              color: active ? const Color(0xFF4338CA) : const Color(0xFF8E8CA8),
+            ),
           ),
         ],
       ),
