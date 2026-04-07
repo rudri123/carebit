@@ -159,9 +159,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
-// ── Home Tab (your existing dashboard content) ──
+// ── Home Tab — Family Health Dashboard (Screen 4) ──
 class _HomeTab extends StatelessWidget {
   const _HomeTab({super.key});
+
+  // Dummy family members
+  static const _familyMembers = [
+    {'name': 'John', 'emoji': '👨', 'color': 0xFF3B82F6},
+    {'name': 'Sarah', 'emoji': '👩', 'color': 0xFFEF4444},
+    {'name': 'Mom', 'emoji': '👩‍🦰', 'color': 0xFF10B981},
+    {'name': 'Riya', 'emoji': '👧', 'color': 0xFFF59E0B},
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -169,170 +177,426 @@ class _HomeTab extends StatelessWidget {
       stream: FirebaseAuth.instance.userChanges(),
       builder: (context, snapshot) {
         final user = snapshot.data ?? FirebaseAuth.instance.currentUser;
+        final displayName = user?.displayName ?? user?.email?.split('@').first ?? 'User';
+        final greeting = _getGreeting();
 
         return Scaffold(
+          backgroundColor: const Color(0xFFF5F4FE),
           body: SafeArea(
-            child: CustomScrollView(
-              slivers: [
-            SliverAppBar(
-              expandedHeight: 200,
-              floating: false,
-              pinned: true,
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              flexibleSpace: FlexibleSpaceBar(
-                title: const Text(
-                  'Dashboard',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                ),
-                background: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Theme.of(context).colorScheme.primary,
-                        Theme.of(context).colorScheme.primaryContainer,
-                      ],
-                    ),
-                  ),
-                ),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── Header ──
+                  _buildHeader(context, displayName, greeting, user),
+                  const SizedBox(height: 20),
+
+                  // ── Family Members ──
+                  _buildFamilyAvatars(),
+                  const SizedBox(height: 24),
+
+                  // ── Health Alerts ──
+                  _buildHealthAlerts(),
+                  const SizedBox(height: 24),
+
+                  // ── Upcoming ──
+                  _buildUpcoming(),
+                  const SizedBox(height: 100),
+                ],
               ),
             ),
-            SliverList(
-              delegate: SliverChildListDelegate([
-                Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Welcome Card
-                      Card(
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          side: BorderSide(color: Colors.grey[200]!),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 60, height: 60,
-                                decoration: BoxDecoration(
-                                  color: Theme.of(context).colorScheme.primaryContainer,
-                                  shape: BoxShape.circle,
-                                  image: user?.photoURL != null
-                                      ? DecorationImage(
-                                          image: NetworkImage(user!.photoURL!),
-                                          fit: BoxFit.cover,
-                                        )
-                                      : null,
-                                ),
-                                child: user?.photoURL == null
-                                    ? Icon(Icons.person, size: 30, color: Theme.of(context).colorScheme.primary)
-                                    : null,
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('Welcome back!',
-                                        style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.grey[600])),
-                                    const SizedBox(height: 4),
-                                    Text(user?.displayName ?? user?.email?.split('@').first ?? 'User',
-                                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                            fontWeight: FontWeight.bold, color: Colors.grey[900])),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      Text('Account Information',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold, color: Colors.grey[900])),
-                      const SizedBox(height: 16),
-
-                      _InfoTile(icon: Icons.person_outline, title: 'Display Name', subtitle: user?.displayName ?? 'Not set', iconColor: Colors.indigo),
-                      const SizedBox(height: 12),
-                      _InfoTile(icon: Icons.email_outlined, title: 'Email Address', subtitle: user?.email ?? 'Not available', iconColor: Colors.blue),
-                      const SizedBox(height: 12),
-                      _InfoTile(icon: Icons.phone_outlined, title: 'Phone Number', subtitle: (user?.phoneNumber != null && user!.phoneNumber!.isNotEmpty) ? user!.phoneNumber! : 'Not set', iconColor: Colors.deepOrange),
-                      const SizedBox(height: 12),
-                      _InfoTile(icon: Icons.fingerprint, title: 'User ID', subtitle: user?.uid ?? 'Not available', iconColor: Colors.purple),
-                      const SizedBox(height: 12),
-                      _InfoTile(
-                        icon: Icons.verified_user_outlined,
-                        title: 'Email Verified',
-                        subtitle: user?.emailVerified == true ? 'Yes' : 'No',
-                        iconColor: user?.emailVerified == true ? Colors.green : Colors.orange,
-                      ),
-                      const SizedBox(height: 12),
-                      _InfoTile(
-                        icon: Icons.calendar_today_outlined,
-                        title: 'Member Since',
-                        subtitle: user?.metadata.creationTime != null ? _formatDate(user!.metadata.creationTime!) : 'Not available',
-                        iconColor: Colors.teal,
-                      ),
-                      const SizedBox(height: 32),
-
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: () => _handleSignOut(context),
-                          icon: const Icon(Icons.logout),
-                          label: const Text('Sign Out'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red[50],
-                            foregroundColor: Colors.red[700],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
-                  ),
-                ),
-              ]),
-            ),
-          ],
-        ),
-      ),
-    );
+          ),
+        );
       },
     );
   }
 
-  String _formatDate(DateTime date) => '${date.day}/${date.month}/${date.year}';
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  }
 
-  Future<void> _handleSignOut(BuildContext context) async {
-    try {
-      await FirebaseAuth.instance.signOut();
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Signed out successfully'),
-            backgroundColor: Colors.green[600],
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+  Widget _buildHeader(BuildContext context, String displayName, String greeting, User? user) {
+    final now = DateTime.now();
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final dateStr = '${months[now.month - 1]} ${now.day}, ${now.year}';
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment(-0.7, -1),
+          end: Alignment(0.7, 1),
+          colors: [Color(0xFF1D4ED8), Color(0xFF4338CA), Color(0xFF7C3AED)],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF4338CA).withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error signing out: $e'),
-            backgroundColor: Colors.red[600],
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Greeting row
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$greeting, $displayName 👋',
+                      style: const TextStyle(
+                        fontFamily: 'Nunito',
+                        fontWeight: FontWeight.w900,
+                        fontSize: 18,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Family health overview · $dateStr',
+                      style: TextStyle(
+                        fontFamily: 'DM Sans',
+                        fontSize: 11.5,
+                        color: Colors.white.withOpacity(0.55),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Avatar
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(21),
+                  border: Border.all(color: Colors.white.withOpacity(0.3), width: 2),
+                  image: user?.photoURL != null
+                      ? DecorationImage(
+                          image: NetworkImage(user!.photoURL!),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
+                ),
+                child: user?.photoURL == null
+                    ? Center(
+                        child: Text(
+                          displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      )
+                    : null,
+              ),
+            ],
           ),
-        );
-      }
-    }
+          const SizedBox(height: 18),
+
+          // Stats row
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withOpacity(0.12)),
+            ),
+            child: Row(
+              children: [
+                _statItem('5', 'MEMBERS'),
+                _statDivider(),
+                _statItem('3', 'ACTIVE'),
+                _statDivider(),
+                _statItem('2', 'ALERTS'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statItem(String value, String label) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: const TextStyle(
+              fontFamily: 'Nunito',
+              fontWeight: FontWeight.w900,
+              fontSize: 20,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'DM Sans',
+              fontWeight: FontWeight.w700,
+              fontSize: 9,
+              letterSpacing: 1,
+              color: Colors.white.withOpacity(0.45),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statDivider() {
+    return Container(
+      width: 1,
+      height: 30,
+      color: Colors.white.withOpacity(0.12),
+    );
+  }
+
+  Widget _buildFamilyAvatars() {
+    return SizedBox(
+      height: 80,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        itemCount: _familyMembers.length,
+        itemBuilder: (context, index) {
+          final member = _familyMembers[index];
+          return Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Column(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: Color(member['color'] as int).withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(26),
+                    border: Border.all(
+                      color: Color(member['color'] as int).withOpacity(0.4),
+                      width: 2,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      member['emoji'] as String,
+                      style: const TextStyle(fontSize: 24),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  member['name'] as String,
+                  style: const TextStyle(
+                    fontFamily: 'DM Sans',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11,
+                    color: Color(0xFF374151),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildHealthAlerts() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '⚕ Health Alerts',
+            style: TextStyle(
+              fontFamily: 'Nunito',
+              fontWeight: FontWeight.w900,
+              fontSize: 17,
+              color: Color(0xFF1E1B4B),
+            ),
+          ),
+          const SizedBox(height: 14),
+          _alertCard(
+            color: const Color(0xFFEF4444),
+            bgColor: const Color(0xFFFEF2F2),
+            borderColor: const Color(0xFFFCA5A5),
+            emoji: '🔴',
+            title: 'Lucas – Inhaler Low',
+            subtitle: 'Less than 10 doses left! Refill before Feb 26.',
+          ),
+          const SizedBox(height: 10),
+          _alertCard(
+            color: const Color(0xFFF59E0B),
+            bgColor: const Color(0xFFFFFBEB),
+            borderColor: const Color(0xFFFCD34D),
+            emoji: '🟡',
+            title: 'John – BP Check Due',
+            subtitle: '14 days since last reading.',
+          ),
+          const SizedBox(height: 10),
+          _alertCard(
+            color: const Color(0xFF8B5CF6),
+            bgColor: const Color(0xFFF5F3FF),
+            borderColor: const Color(0xFFC4B5FD),
+            emoji: '🟣',
+            title: 'Emma – Vaccine Due',
+            subtitle: 'HPV booster due March 2025.',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _alertCard({
+    required Color color,
+    required Color bgColor,
+    required Color borderColor,
+    required String emoji,
+    required String title,
+    required String subtitle,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor.withOpacity(0.4)),
+      ),
+      child: Row(
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 16)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontFamily: 'Nunito',
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                    color: color,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontFamily: 'DM Sans',
+                    fontSize: 11.5,
+                    color: color.withOpacity(0.7),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUpcoming() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '📅 Upcoming',
+            style: TextStyle(
+              fontFamily: 'Nunito',
+              fontWeight: FontWeight.w900,
+              fontSize: 17,
+              color: Color(0xFF1E1B4B),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF4338CA).withOpacity(0.06),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5F3FF),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Center(child: Text('🩺', style: TextStyle(fontSize: 20))),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'John – Cardiologist',
+                        style: TextStyle(
+                          fontFamily: 'Nunito',
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          color: Color(0xFF1E1B4B),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Dr. Smith · Annual checkup',
+                        style: TextStyle(
+                          fontFamily: 'DM Sans',
+                          fontSize: 11.5,
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF3C7),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'Soon',
+                    style: TextStyle(
+                      fontFamily: 'DM Sans',
+                      fontWeight: FontWeight.w700,
+                      fontSize: 10,
+                      color: Color(0xFFF59E0B),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -360,41 +624,6 @@ class _PlaceholderTab extends StatelessWidget {
             Text('Coming soon...', style: TextStyle(color: Colors.grey[500], fontSize: 14)),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// ── Info Tile ──
-class _InfoTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Color iconColor;
-
-  const _InfoTile({required this.icon, required this.title, required this.subtitle, required this.iconColor});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
-      child: ListTile(
-        leading: Container(
-          width: 48, height: 48,
-          decoration: BoxDecoration(
-            color: iconColor.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(icon, color: iconColor, size: 24),
-        ),
-        title: Text(title, style: TextStyle(fontSize: 14, color: Colors.grey[600], fontWeight: FontWeight.w500)),
-        subtitle: Text(subtitle,
-            style: TextStyle(fontSize: 16, color: Colors.grey[900], fontWeight: FontWeight.w600),
-            overflow: TextOverflow.ellipsis),
       ),
     );
   }

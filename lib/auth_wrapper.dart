@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'home_screen.dart';
-import 'dashboard_screen.dart';
+import 'onboarding_screen.dart';
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
@@ -20,9 +20,9 @@ class AuthWrapper extends StatelessWidget {
           );
         }
 
-        // If user is logged in, show dashboard
+        // If user is logged in, start onboarding flow
         if (snapshot.hasData && snapshot.data != null) {
-          return const DashboardScreen();
+          return const OnboardingScreen();
         }
 
         // Otherwise show home/welcome screen
@@ -31,3 +31,4 @@ class AuthWrapper extends StatelessWidget {
     );
   }
 }
+
