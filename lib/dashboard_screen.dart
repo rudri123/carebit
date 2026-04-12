@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'profile_screen.dart';
 import 'health_report_screen.dart';
 import 'community_intro_screen.dart';
@@ -19,23 +22,69 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   int _currentIndex = 0;
-  late List<Map<String, dynamic>> _familyMembers;
+  List<Map<String, dynamic>> _familyMembers = [];
+  bool _isLoadingMembers = true;
 
   @override
   void initState() {
     super.initState();
-    _familyMembers = List<Map<String, dynamic>>.from(widget.initialFamilyMembers);
+    _loadFamilyMembers();
+  }
+
+  Future<void> _loadFamilyMembers() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // If members were passed from contact sync, use those first and save them
+    if (widget.initialFamilyMembers.isNotEmpty) {
+      _familyMembers = List<Map<String, dynamic>>.from(widget.initialFamilyMembers);
+      await _saveFamilyMembers(_familyMembers);
+    } else {
+      // Otherwise load saved members from local storage
+      final savedMembersString = prefs.getString('family_members');
+      if (savedMembersString != null) {
+        final decoded = jsonDecode(savedMembersString) as List<dynamic>;
+        _familyMembers = decoded
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _isLoadingMembers = false;
+      });
+    }
+  }
+
+  Future<void> _saveFamilyMembers(List<Map<String, dynamic>> members) async {
+    final prefs = await SharedPreferences.getInstance();
+    final encoded = jsonEncode(members);
+    await prefs.setString('family_members', encoded);
+  }
+
+  Future<void> _updateFamilyMembers(List<Map<String, dynamic>> updatedMembers) async {
+    setState(() {
+      _familyMembers = List<Map<String, dynamic>>.from(updatedMembers);
+    });
+
+    await _saveFamilyMembers(_familyMembers);
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoadingMembers) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     final pages = [
       _HomeTab(
         familyMembers: _familyMembers,
-        onMembersUpdated: (updatedMembers) {
-          setState(() {
-            _familyMembers = updatedMembers;
-          });
+        onMembersUpdated: (updatedMembers) async {
+          await _updateFamilyMembers(updatedMembers);
         },
       ),
       const HealthReportScreen(),
@@ -116,8 +165,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _navFab() {
-    final bool active = _currentIndex == 2;
-
     return GestureDetector(
       onTap: () {
         if (_familyMembers.isEmpty) {
@@ -182,15 +229,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
+          const Text(
             'Add',
             style: TextStyle(
               fontFamily: 'DM Sans',
               fontWeight: FontWeight.w700,
               fontSize: 10,
-              color: active
-                  ? const Color(0xFF4338CA)
-                  : const Color(0xFF8E8CA8),
+              color: Color(0xFF8E8CA8),
             ),
           ),
         ],
@@ -227,7 +272,9 @@ class _HomeTabState extends State<_HomeTab> {
   void didUpdateWidget(covariant _HomeTab oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.familyMembers != widget.familyMembers) {
-      _familyMembers = List<Map<String, dynamic>>.from(widget.familyMembers);
+      setState(() {
+        _familyMembers = List<Map<String, dynamic>>.from(widget.familyMembers);
+      });
     }
   }
 
