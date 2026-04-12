@@ -393,7 +393,74 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         ),
                       ),
                     ),
+                    
+                    const SizedBox(height: 24),
 
+                    // Login row
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            height: 1,
+                            color: const Color(0xFFE2DFEF),
+                          ),
+                        ),
+                        const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 14),
+                        child: Text(
+                          'OR CONTINUE WITH',
+                            style: TextStyle(
+                              color: Color(0xFFC3C0D8),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.2,
+                             ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Container(
+                            height: 1,
+                            color: const Color(0xFFE2DFEF),
+                          ),
+                        ),
+                      ],
+                    ),
+                  const SizedBox(height: 22),
+
+                   // Google button (UI only for now)
+                    SizedBox(
+                      width: double.infinity,
+                        height: 56,
+                        child: OutlinedButton(
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: const Text('Google sign-up can be added next'),
+                                backgroundColor: Colors.blueGrey[700],
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            );
+                          },
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            side: const BorderSide(color: Color(0xFFE7E7EF)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                          ),
+                          child: const Text(
+                            'Continue with Google',
+                            style: TextStyle(
+                              color: Color(0xFF23235F),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
                     const SizedBox(height: 24),
 
                     // Login row
