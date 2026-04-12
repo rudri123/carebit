@@ -2,9 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'profile_screen.dart';
 import 'health_report_screen.dart';
+import 'community_intro_screen.dart';
+import 'contact_sync_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  final List<Map<String, dynamic>> initialFamilyMembers;
+
+  const DashboardScreen({
+    super.key,
+    this.initialFamilyMembers = const [],
+  });
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -12,25 +19,38 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   int _currentIndex = 0;
+  late List<Map<String, dynamic>> _familyMembers;
 
-  // ── Pages for each tab ──
-  late final List<Widget> _pages = [
-    const _HomeTab(),
-    const HealthReportScreen(),
-    const _PlaceholderTab('Add', '➕'),
-    const _PlaceholderTab('Alerts', '🔔'),
-    const ProfileScreen(),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _familyMembers = List<Map<String, dynamic>>.from(widget.initialFamilyMembers);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final pages = [
+      _HomeTab(
+        familyMembers: _familyMembers,
+        onMembersUpdated: (updatedMembers) {
+          setState(() {
+            _familyMembers = updatedMembers;
+          });
+        },
+      ),
+      const HealthReportScreen(),
+      const _PlaceholderTab('Community', '💜'),
+      const _PlaceholderTab('Alerts', '🔔'),
+      const ProfileScreen(),
+    ];
+
     return Scaffold(
-      body: _pages[_currentIndex],
+      body: pages[_currentIndex],
       bottomNavigationBar: _buildBottomNav(),
     );
   }
 
-    Widget _buildBottomNav() {
+  Widget _buildBottomNav() {
     return SafeArea(
       top: false,
       child: Container(
@@ -84,7 +104,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 fontFamily: 'DM Sans',
                 fontWeight: FontWeight.w700,
                 fontSize: 10,
-                color: active ? const Color(0xFF4338CA) : const Color(0xFF8E8CA8),
+                color: active
+                    ? const Color(0xFF4338CA)
+                    : const Color(0xFF8E8CA8),
               ),
             ),
           ],
@@ -97,7 +119,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final bool active = _currentIndex == 2;
 
     return GestureDetector(
-      onTap: () => setState(() => _currentIndex = 2),
+      onTap: () {
+        if (_familyMembers.isEmpty) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const CommunityIntroScreen(),
+            ),
+          );
+        } else {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => ContactSyncScreen(
+                existingFamilyMembers: _familyMembers,
+              ),
+            ),
+          );
+        }
+      },
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -150,7 +188,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               fontFamily: 'DM Sans',
               fontWeight: FontWeight.w700,
               fontSize: 10,
-              color: active ? const Color(0xFF4338CA) : const Color(0xFF8E8CA8),
+              color: active
+                  ? const Color(0xFF4338CA)
+                  : const Color(0xFF8E8CA8),
             ),
           ),
         ],
@@ -159,17 +199,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
-// ── Home Tab — Family Health Dashboard (Screen 4) ──
-class _HomeTab extends StatelessWidget {
-  const _HomeTab({super.key});
+// ── Home Tab — Community Dashboard ──
+class _HomeTab extends StatefulWidget {
+  final List<Map<String, dynamic>> familyMembers;
+  final ValueChanged<List<Map<String, dynamic>>> onMembersUpdated;
 
-  // Dummy family members
-  static const _familyMembers = [
-    {'name': 'John', 'emoji': '👨', 'color': 0xFF3B82F6},
-    {'name': 'Sarah', 'emoji': '👩', 'color': 0xFFEF4444},
-    {'name': 'Mom', 'emoji': '👩‍🦰', 'color': 0xFF10B981},
-    {'name': 'Riya', 'emoji': '👧', 'color': 0xFFF59E0B},
-  ];
+  const _HomeTab({
+    super.key,
+    required this.familyMembers,
+    required this.onMembersUpdated,
+  });
+
+  @override
+  State<_HomeTab> createState() => _HomeTabState();
+}
+
+class _HomeTabState extends State<_HomeTab> {
+  late List<Map<String, dynamic>> _familyMembers;
+
+  @override
+  void initState() {
+    super.initState();
+    _familyMembers = List<Map<String, dynamic>>.from(widget.familyMembers);
+  }
+
+  @override
+  void didUpdateWidget(covariant _HomeTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.familyMembers != widget.familyMembers) {
+      _familyMembers = List<Map<String, dynamic>>.from(widget.familyMembers);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -177,7 +237,8 @@ class _HomeTab extends StatelessWidget {
       stream: FirebaseAuth.instance.userChanges(),
       builder: (context, snapshot) {
         final user = snapshot.data ?? FirebaseAuth.instance.currentUser;
-        final displayName = user?.displayName ?? user?.email?.split('@').first ?? 'User';
+        final displayName =
+            user?.displayName ?? user?.email?.split('@').first ?? 'User';
         final greeting = _getGreeting();
 
         return Scaffold(
@@ -187,19 +248,10 @@ class _HomeTab extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ── Header ──
                   _buildHeader(context, displayName, greeting, user),
                   const SizedBox(height: 20),
-
-                  // ── Family Members ──
-                  _buildFamilyAvatars(),
+                  _buildCommunityCards(context),
                   const SizedBox(height: 24),
-
-                  // ── Health Alerts ──
-                  _buildHealthAlerts(),
-                  const SizedBox(height: 24),
-
-                  // ── Upcoming ──
                   _buildUpcoming(),
                   const SizedBox(height: 100),
                 ],
@@ -218,9 +270,117 @@ class _HomeTab extends StatelessWidget {
     return 'Good evening';
   }
 
-  Widget _buildHeader(BuildContext context, String displayName, String greeting, User? user) {
+  Future<void> _editMemberName(int index) async {
+    final controller = TextEditingController(
+      text: _familyMembers[index]['name'] as String,
+    );
+
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Edit Member Name',
+            style: TextStyle(
+              fontFamily: 'Nunito',
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1E1B4B),
+            ),
+          ),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: InputDecoration(
+              hintText: 'Enter member name',
+              filled: true,
+              fillColor: const Color(0xFFF8F7FE),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Color(0xFFE7E7EF)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Color(0xFFE7E7EF)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(
+                  color: Color(0xFF4338CA),
+                  width: 1.5,
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(
+                  color: Color(0xFF6B7280),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context, controller.text.trim());
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4338CA),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text(
+                'Save',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (newName != null && newName.isNotEmpty) {
+      setState(() {
+        _familyMembers[index]['name'] = newName;
+      });
+
+      widget.onMembersUpdated(List<Map<String, dynamic>>.from(_familyMembers));
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Member name updated'),
+          backgroundColor: Colors.green[600],
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+    }
+  }
+
+  Widget _buildHeader(
+    BuildContext context,
+    String displayName,
+    String greeting,
+    User? user,
+  ) {
     final now = DateTime.now();
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
     final dateStr = '${months[now.month - 1]} ${now.day}, ${now.year}';
 
     return Container(
@@ -244,7 +404,6 @@ class _HomeTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Greeting row
           Row(
             children: [
               Expanded(
@@ -262,7 +421,7 @@ class _HomeTab extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Family health overview · $dateStr',
+                      'Community health overview · $dateStr',
                       style: TextStyle(
                         fontFamily: 'DM Sans',
                         fontSize: 11.5,
@@ -272,14 +431,16 @@ class _HomeTab extends StatelessWidget {
                   ],
                 ),
               ),
-              // Avatar
               Container(
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.18),
                   borderRadius: BorderRadius.circular(21),
-                  border: Border.all(color: Colors.white.withOpacity(0.3), width: 2),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.3),
+                    width: 2,
+                  ),
                   image: user?.photoURL != null
                       ? DecorationImage(
                           image: NetworkImage(user!.photoURL!),
@@ -290,7 +451,9 @@ class _HomeTab extends StatelessWidget {
                 child: user?.photoURL == null
                     ? Center(
                         child: Text(
-                          displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
+                          displayName.isNotEmpty
+                              ? displayName[0].toUpperCase()
+                              : '?',
                           style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -303,8 +466,6 @@ class _HomeTab extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 18),
-
-          // Stats row
           Container(
             padding: const EdgeInsets.symmetric(vertical: 14),
             decoration: BoxDecoration(
@@ -314,11 +475,11 @@ class _HomeTab extends StatelessWidget {
             ),
             child: Row(
               children: [
-                _statItem('5', 'MEMBERS'),
+                _statItem(_familyMembers.length.toString(), 'MEMBERS'),
                 _statDivider(),
-                _statItem('3', 'ACTIVE'),
+                _statItem(_familyMembers.length.toString(), 'ACTIVE'),
                 _statDivider(),
-                _statItem('2', 'ALERTS'),
+                _statItem('0', 'ALERTS'),
               ],
             ),
           ),
@@ -364,63 +525,14 @@ class _HomeTab extends StatelessWidget {
     );
   }
 
-  Widget _buildFamilyAvatars() {
-    return SizedBox(
-      height: 80,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        itemCount: _familyMembers.length,
-        itemBuilder: (context, index) {
-          final member = _familyMembers[index];
-          return Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Column(
-              children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: Color(member['color'] as int).withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(26),
-                    border: Border.all(
-                      color: Color(member['color'] as int).withOpacity(0.4),
-                      width: 2,
-                    ),
-                  ),
-                  child: Center(
-                    child: Text(
-                      member['emoji'] as String,
-                      style: const TextStyle(fontSize: 24),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  member['name'] as String,
-                  style: const TextStyle(
-                    fontFamily: 'DM Sans',
-                    fontWeight: FontWeight.w700,
-                    fontSize: 11,
-                    color: Color(0xFF374151),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildHealthAlerts() {
+  Widget _buildCommunityCards(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            '⚕ Health Alerts',
+            '👥 Community Members',
             style: TextStyle(
               fontFamily: 'Nunito',
               fontWeight: FontWeight.w900,
@@ -429,79 +541,205 @@ class _HomeTab extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          _alertCard(
-            color: const Color(0xFFEF4444),
-            bgColor: const Color(0xFFFEF2F2),
-            borderColor: const Color(0xFFFCA5A5),
-            emoji: '🔴',
-            title: 'Lucas – Inhaler Low',
-            subtitle: 'Less than 10 doses left! Refill before Feb 26.',
-          ),
-          const SizedBox(height: 10),
-          _alertCard(
-            color: const Color(0xFFF59E0B),
-            bgColor: const Color(0xFFFFFBEB),
-            borderColor: const Color(0xFFFCD34D),
-            emoji: '🟡',
-            title: 'John – BP Check Due',
-            subtitle: '14 days since last reading.',
-          ),
-          const SizedBox(height: 10),
-          _alertCard(
-            color: const Color(0xFF8B5CF6),
-            bgColor: const Color(0xFFF5F3FF),
-            borderColor: const Color(0xFFC4B5FD),
-            emoji: '🟣',
-            title: 'Emma – Vaccine Due',
-            subtitle: 'HPV booster due March 2025.',
-          ),
+
+          if (_familyMembers.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF4338CA).withOpacity(0.06),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF5F3FF),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Center(
+                      child: Text('👨‍👩‍👧', style: TextStyle(fontSize: 28)),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Text(
+                    'No family members added yet',
+                    style: TextStyle(
+                      fontFamily: 'Nunito',
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                      color: Color(0xFF1E1B4B),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Tap the Add button below to connect and add your loved ones.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'DM Sans',
+                      fontSize: 13,
+                      color: Color(0xFF6B7280),
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          ..._familyMembers.asMap().entries.map((entry) {
+            final index = entry.key;
+            final member = entry.value;
+            final memberColor = Color(member['color'] as int);
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF4338CA).withOpacity(0.06),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Theme(
+                  data: Theme.of(context).copyWith(
+                    dividerColor: Colors.transparent,
+                  ),
+                  child: ExpansionTile(
+                    tilePadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 6,
+                    ),
+                    childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                    leading: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: memberColor.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: memberColor.withOpacity(0.35),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          member['emoji'] as String,
+                          style: const TextStyle(fontSize: 22),
+                        ),
+                      ),
+                    ),
+                    title: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            member['name'] as String,
+                            style: const TextStyle(
+                              fontFamily: 'Nunito',
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15,
+                              color: Color(0xFF1E1B4B),
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        GestureDetector(
+                          onTap: () => _editMemberName(index),
+                          child: Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF5F3FF),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.edit_rounded,
+                              size: 16,
+                              color: Color(0xFF4338CA),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    subtitle: const Text(
+                      'Tap to view health metrics',
+                      style: TextStyle(
+                        fontFamily: 'DM Sans',
+                        fontSize: 11.5,
+                        color: Color(0xFF6B7280),
+                      ),
+                    ),
+                    children: [
+                      GridView.count(
+                        crossAxisCount: 2,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10,
+                        childAspectRatio: 2.4,
+                        children: [
+                          _metricCard('Battery', member['battery'] as String),
+                          _metricCard('Resting HR', member['restingHr'] as String),
+                          _metricCard('SpO2', member['spo2'] as String),
+                          _metricCard('BMR', member['bmr'] as String),
+                          _metricCard('Steps Today', member['steps'] as String),
+                          _metricCard('Sleep', member['sleep'] as String),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
         ],
       ),
     );
   }
 
-  Widget _alertCard({
-    required Color color,
-    required Color bgColor,
-    required Color borderColor,
-    required String emoji,
-    required String title,
-    required String subtitle,
-  }) {
+  Widget _metricCard(String label, String value) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor.withOpacity(0.4)),
+        color: const Color(0xFFF8F7FE),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE9E7F7)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(emoji, style: const TextStyle(fontSize: 16)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontFamily: 'Nunito',
-                    fontWeight: FontWeight.w800,
-                    fontSize: 13,
-                    color: color,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontFamily: 'DM Sans',
-                    fontSize: 11.5,
-                    color: color.withOpacity(0.7),
-                  ),
-                ),
-              ],
+          Text(
+            label,
+            style: const TextStyle(
+              fontFamily: 'DM Sans',
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF6B7280),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(
+              fontFamily: 'Nunito',
+              fontWeight: FontWeight.w900,
+              fontSize: 13,
+              color: Color(0xFF1E1B4B),
             ),
           ),
         ],
@@ -525,75 +763,106 @@ class _HomeTab extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF4338CA).withOpacity(0.06),
-                  blurRadius: 16,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF5F3FF),
-                    borderRadius: BorderRadius.circular(12),
+          if (_familyMembers.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF4338CA).withOpacity(0.06),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
                   ),
-                  child: const Center(child: Text('🩺', style: TextStyle(fontSize: 20))),
+                ],
+              ),
+              child: const Text(
+                'No upcoming events yet. Add family members to see appointments and reminders.',
+                style: TextStyle(
+                  fontFamily: 'DM Sans',
+                  fontSize: 13,
+                  color: Color(0xFF6B7280),
+                  height: 1.5,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'John – Cardiologist',
-                        style: TextStyle(
-                          fontFamily: 'Nunito',
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
-                          color: Color(0xFF1E1B4B),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Dr. Smith · Annual checkup',
-                        style: TextStyle(
-                          fontFamily: 'DM Sans',
-                          fontSize: 11.5,
-                          color: Colors.grey[500],
-                        ),
-                      ),
-                    ],
+              ),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF4338CA).withOpacity(0.06),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
                   ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFEF3C7),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Text(
-                    'Soon',
-                    style: TextStyle(
-                      fontFamily: 'DM Sans',
-                      fontWeight: FontWeight.w700,
-                      fontSize: 10,
-                      color: Color(0xFFF59E0B),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF5F3FF),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Center(
+                      child: Text('🩺', style: TextStyle(fontSize: 20)),
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${_familyMembers.first['name']} – Cardiologist',
+                          style: const TextStyle(
+                            fontFamily: 'Nunito',
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                            color: Color(0xFF1E1B4B),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Dr. Smith · Annual checkup',
+                          style: TextStyle(
+                            fontFamily: 'DM Sans',
+                            fontSize: 11.5,
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF3C7),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'Soon',
+                      style: TextStyle(
+                        fontFamily: 'DM Sans',
+                        fontWeight: FontWeight.w700,
+                        fontSize: 10,
+                        color: Color(0xFFF59E0B),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -617,11 +886,20 @@ class _PlaceholderTab extends StatelessWidget {
           children: [
             Text(emoji, style: const TextStyle(fontSize: 60)),
             const SizedBox(height: 16),
-            Text(title,
-                style: const TextStyle(
-                    fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 22, color: Color(0xFF1E1B4B))),
+            Text(
+              title,
+              style: const TextStyle(
+                fontFamily: 'Nunito',
+                fontWeight: FontWeight.w800,
+                fontSize: 22,
+                color: Color(0xFF1E1B4B),
+              ),
+            ),
             const SizedBox(height: 8),
-            Text('Coming soon...', style: TextStyle(color: Colors.grey[500], fontSize: 14)),
+            Text(
+              'Coming soon...',
+              style: TextStyle(color: Colors.grey[500], fontSize: 14),
+            ),
           ],
         ),
       ),

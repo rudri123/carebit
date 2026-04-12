@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'home_screen.dart';
+import 'device_connect_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -49,7 +50,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           // Fitbit Connected
-                          _buildFitbitBanner(),
+                          _buildConnectDeviceButton(),
                           const SizedBox(height: 20),
 
                           // Personal Information
@@ -315,47 +316,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   // ── Fitbit Banner ──
-  Widget _buildFitbitBanner() {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF00B478), Color(0xFF007A52)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+  Widget _buildConnectDeviceButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 56,
+      child: OutlinedButton.icon(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const DeviceConnectScreen(),
+            ),
+          );
+        }, 
+        icon: const Icon(
+          Icons.watch_rounded,
+          color: Color(0xFF4338CA),
+          size: 22,
+        ), 
+        label: const Text(
+          'Connect Device',
+          style: TextStyle(
+            fontFamily: 'Nunito',
+            fontWeight: FontWeight.w800,
+            fontSize: 15,
+            color: Color(0xFF23235F),
+          ),
         ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.18),
-              borderRadius: BorderRadius.circular(13),
-              border: Border.all(color: Colors.white.withOpacity(0.25)),
-            ),
-            child: const Center(child: Icon(Icons.watch_rounded, color: Colors.white,size: 22,)),
+        style: OutlinedButton.styleFrom(
+          backgroundColor: Colors.white,
+          side: const BorderSide(color: Color(0xFFE7E7EF)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Fitbit Connected', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 13, color: Colors.white)),
-                const SizedBox(height: 2),
-                Text('Charge 6 · Synced 2 min ago', style: TextStyle(fontFamily: 'DM Sans', fontSize: 10.5, color: Colors.white.withOpacity(0.65))),
-              ],
-            ),
-          ),
-          Container(
-            width: 26, height: 26,
-            decoration: BoxDecoration(color: Colors.white.withOpacity(0.18), borderRadius: BorderRadius.circular(8)),
-            child: const Center(child: Icon(Icons.check_rounded,color: Colors.white,size:18,)),
-          ),
-        ],
-      ),
+        ),
+      ), 
     );
   }
 

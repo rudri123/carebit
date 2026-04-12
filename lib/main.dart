@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
-import 'auth_wrapper.dart';
-//import 'splash_screen.dart';
+import 'splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,7 +18,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Firebase Auth',
+      title: 'Carebit',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF6366F1),
@@ -70,7 +69,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const AuthWrapper(),
+      home: const SplashScreen(),
     );
   }
 }

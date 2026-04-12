@@ -1,17 +1,3 @@
-// device_connect_screen.dart
-//
-// Changes from original:
-//  1. Imports fitbit_service.dart, firebase_auth, url_launcher, app_links
-//  2. Added state: _fitbitConnected, _fitbitDeviceName, _batteryLevel,
-//     _isConnecting, _statusMessage, _oauthState, _appLinks subscription
-//  3. initState() starts listening for the carebit://fitbit-callback deep link
-//  4. _connectFitbit() fetches the OAuth URL and opens it in the browser
-//  5. _handleDeepLink() calls FitbitService.exchangeCallback() then updates UI
-//  6. Device tile for Fitbit now shows real device name / battery and a
-//     "Connect Fitbit" / "Connecting…" / "Connected ✓" button
-//  7. Status card shows real device info once connected
-//  8. All other UI unchanged
-
 import 'dart:async';
 
 import 'package:app_links/app_links.dart';
@@ -19,7 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'community_intro_screen.dart';
+import 'dashboard_screen.dart';
 import 'fitbit_service.dart';
 
 class DeviceConnectScreen extends StatefulWidget {
@@ -50,7 +36,7 @@ class _DeviceConnectScreenState extends State<DeviceConnectScreen> {
   final List<_Device> _devices = [
     _Device(
       name: 'Fitbit',
-      subtitle: 'Tap to connect',       // updated dynamically
+      subtitle: 'Tap to connect',
       emoji: '⌚',
       statusColor: const Color(0xFF6B7280),
       connected: false,
@@ -77,18 +63,14 @@ class _DeviceConnectScreenState extends State<DeviceConnectScreen> {
     _initDeepLink();
   }
 
-  // ── Deep-link setup ────────────────────────────────────────────────────────
-
   Future<void> _initDeepLink() async {
     _appLinks = AppLinks();
 
-    // Handle the case where the app was launched cold from the redirect.
     final initialUri = await _appLinks.getInitialLink();
     if (initialUri != null && mounted) {
       _handleDeepLink(initialUri);
     }
 
-    // Handle hot redirects while the app is already running.
     _deepLinkSub = _appLinks.uriLinkStream.listen(
       (uri) {
         if (mounted) _handleDeepLink(uri);
@@ -97,9 +79,7 @@ class _DeviceConnectScreenState extends State<DeviceConnectScreen> {
     );
   }
 
-  /// Called whenever the OS delivers a `carebit://fitbit-callback?code=…` URI.
   Future<void> _handleDeepLink(Uri uri) async {
-    // Only handle the Fitbit redirect URI.
     if (uri.scheme != kFitbitRedirectScheme) return;
 
     final code = uri.queryParameters['code'];
@@ -127,7 +107,6 @@ class _DeviceConnectScreenState extends State<DeviceConnectScreen> {
 
       FitbitDevice device;
 
-      // Prefer exchangeCallback if we have the code; fall back to polling.
       try {
         device = await FitbitService.instance.exchangeCallback(
           code: code,
@@ -135,8 +114,6 @@ class _DeviceConnectScreenState extends State<DeviceConnectScreen> {
           idToken: idToken,
         );
       } on FitbitServiceException {
-        // Backend may have already processed the code via the redirect
-        // (server-side callback). Try polling status instead.
         if (_oauthState != null) {
           setState(() => _statusMessage = 'Waiting for Fitbit to confirm…');
           device = await FitbitService.instance.pollCallbackStatus(
@@ -155,7 +132,6 @@ class _DeviceConnectScreenState extends State<DeviceConnectScreen> {
         _batteryLevel = device.batteryLevel;
         _isConnecting = false;
         _statusMessage = null;
-        // Update the Fitbit tile in the list.
         _devices[0] = _Device(
           name: 'Fitbit',
           subtitle: device.deviceName,
@@ -171,8 +147,6 @@ class _DeviceConnectScreenState extends State<DeviceConnectScreen> {
     }
   }
 
-  // ── Connect button logic ───────────────────────────────────────────────────
-
   Future<void> _connectFitbit() async {
     if (_fitbitConnected || _isConnecting) return;
 
@@ -183,7 +157,7 @@ class _DeviceConnectScreenState extends State<DeviceConnectScreen> {
 
     try {
       final result = await FitbitService.instance.getAuthUrl();
-      _oauthState = result.state; // store for polling
+      _oauthState = result.state;
 
       final uri = Uri.parse(result.authUrl);
       if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
@@ -191,7 +165,6 @@ class _DeviceConnectScreenState extends State<DeviceConnectScreen> {
         return;
       }
 
-      // Browser opened. Now we wait for the deep-link callback (_handleDeepLink).
       setState(() => _statusMessage = 'Waiting for Fitbit authorisation…');
     } on FitbitServiceException catch (e) {
       _setError(e.message);
@@ -199,8 +172,6 @@ class _DeviceConnectScreenState extends State<DeviceConnectScreen> {
       _setError('Could not reach backend: $e');
     }
   }
-
-  // ── Helpers ────────────────────────────────────────────────────────────────
 
   Future<String?> _getIdToken() async {
     try {
@@ -224,8 +195,6 @@ class _DeviceConnectScreenState extends State<DeviceConnectScreen> {
     super.dispose();
   }
 
-  // ── Build ──────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -248,8 +217,11 @@ class _DeviceConnectScreenState extends State<DeviceConnectScreen> {
                     color: const Color(0xFFEDE9FE),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.arrow_back_ios_new,
-                      size: 16, color: Color(0xFF4338CA)),
+                  child: const Icon(
+                    Icons.arrow_back_ios_new,
+                    size: 16,
+                    color: Color(0xFF4338CA),
+                  ),
                 ),
               ),
               const SizedBox(height: 24),
@@ -316,8 +288,7 @@ class _DeviceConnectScreenState extends State<DeviceConnectScreen> {
                   ),
                 ),
 
-              // ── Connect Fitbit button (shown when Fitbit tile is selected
-              //    and not yet connected) ──
+              // ── Connect Fitbit button ──
               if (_selectedDevice == 0 && !_fitbitConnected)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
@@ -357,7 +328,7 @@ class _DeviceConnectScreenState extends State<DeviceConnectScreen> {
 
               const Spacer(),
 
-              // ── Status card (real data when connected) ──
+              // ── Status card ──
               if (_selectedDevice == 0 && _fitbitConnected)
                 Container(
                   width: double.infinity,
@@ -434,21 +405,25 @@ class _DeviceConnectScreenState extends State<DeviceConnectScreen> {
 
               const SizedBox(height: 16),
 
-              // ── CONTINUE button ──
+              // ── CONTINUE button (device flow only) ──
               SizedBox(
                 width: double.infinity,
                 height: 54,
                 child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(
-                        builder: (_) => const CommunityIntroScreen(),
-                      ),
-                    );
-                  },
+                  onPressed: _fitbitConnected
+                      ? () {
+                          Navigator.of(context).pushReplacement(
+                            MaterialPageRoute(
+                              builder: (_) => const DashboardScreen(),
+                            ),
+                          );
+                        }
+                      : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.transparent,
                     foregroundColor: Colors.white,
+                    disabledBackgroundColor: Colors.transparent,
+                    disabledForegroundColor: Colors.white70,
                     elevation: 0,
                     shadowColor: Colors.transparent,
                     padding: EdgeInsets.zero,
@@ -458,37 +433,51 @@ class _DeviceConnectScreenState extends State<DeviceConnectScreen> {
                   ),
                   child: Ink(
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF4338CA), Color(0xFF7C3AED)],
-                      ),
+                      gradient: _fitbitConnected
+                          ? const LinearGradient(
+                              colors: [Color(0xFF4338CA), Color(0xFF7C3AED)],
+                            )
+                          : const LinearGradient(
+                              colors: [Color(0xFFBDB8E8), Color(0xFFD6D2F5)],
+                            ),
                       borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF4338CA).withOpacity(0.35),
-                          blurRadius: 16,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
+                      boxShadow: _fitbitConnected
+                          ? [
+                              BoxShadow(
+                                color: const Color(0xFF4338CA).withOpacity(0.35),
+                                blurRadius: 16,
+                                offset: const Offset(0, 6),
+                              ),
+                            ]
+                          : [],
                     ),
                     child: Container(
                       alignment: Alignment.center,
-                      child: const Row(
+                      child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            'CONTINUE',
-                            style: TextStyle(
+                            _fitbitConnected
+                                ? 'CONTINUE'
+                                : 'CONNECT FITBIT TO CONTINUE',
+                            style: const TextStyle(
                               fontFamily: 'DM Sans',
                               fontWeight: FontWeight.w800,
-                              fontSize: 14,
+                              fontSize: 13,
                               letterSpacing: 1,
                               color: Colors.white,
                             ),
                           ),
-                          SizedBox(width: 8),
-                          Text('→',
-                              style:
-                                  TextStyle(fontSize: 16, color: Colors.white)),
+                          if (_fitbitConnected) ...[
+                            const SizedBox(width: 8),
+                            const Text(
+                              '→',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -502,8 +491,6 @@ class _DeviceConnectScreenState extends State<DeviceConnectScreen> {
       ),
     );
   }
-
-  // ── Device tile (unchanged visual, dynamic Fitbit data) ─────────────────────
 
   Widget _deviceTile(_Device device, int index) {
     final bool selected = _selectedDevice == index;
@@ -542,7 +529,6 @@ class _DeviceConnectScreenState extends State<DeviceConnectScreen> {
         ),
         child: Row(
           children: [
-            // Status dot
             Container(
               width: 10,
               height: 10,
@@ -561,7 +547,6 @@ class _DeviceConnectScreenState extends State<DeviceConnectScreen> {
             ),
             const SizedBox(width: 14),
 
-            // Device icon
             Container(
               width: 44,
               height: 44,
@@ -572,13 +557,11 @@ class _DeviceConnectScreenState extends State<DeviceConnectScreen> {
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Center(
-                child: Text(device.emoji,
-                    style: const TextStyle(fontSize: 22)),
+                child: Text(device.emoji, style: const TextStyle(fontSize: 22)),
               ),
             ),
             const SizedBox(width: 14),
 
-            // Name & subtitle
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -595,7 +578,6 @@ class _DeviceConnectScreenState extends State<DeviceConnectScreen> {
                     ),
                   ),
                   const SizedBox(height: 2),
-                  // For Fitbit tile, show dynamic subtitle
                   Text(
                     index == 0
                         ? (_fitbitConnected
@@ -614,7 +596,6 @@ class _DeviceConnectScreenState extends State<DeviceConnectScreen> {
               ),
             ),
 
-            // Selection indicator
             if (selected)
               Container(
                 width: 24,
@@ -633,8 +614,10 @@ class _DeviceConnectScreenState extends State<DeviceConnectScreen> {
                 height: 24,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
-                  border:
-                      Border.all(color: const Color(0xFFD1D5DB), width: 2),
+                  border: Border.all(
+                    color: const Color(0xFFD1D5DB),
+                    width: 2,
+                  ),
                 ),
               ),
           ],

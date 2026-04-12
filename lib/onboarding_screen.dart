@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'device_connect_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'home_screen.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -18,6 +19,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     super.dispose();
   }
 
+  Future<void> _finishOnboarding() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('has_seen_onboarding', true);
+
+    if (!mounted) return;
+
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => const HomeScreen(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -31,6 +45,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               _buildPage2(),
             ],
           ),
+
           // Page indicator dots
           Positioned(
             bottom: 120,
@@ -158,14 +173,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         ),
                       ),
                       SizedBox(width: 8),
-                      Text('→', style: TextStyle(fontSize: 16, color: Colors.white)),
+                      Text(
+                        '→',
+                        style: TextStyle(fontSize: 16, color: Colors.white),
+                      ),
                     ],
                   ),
                 ),
               ),
               const SizedBox(height: 16),
 
-              // Sign in link
+              // Sign in hint
               Text(
                 'Already have an account? Sign in',
                 style: TextStyle(
@@ -254,13 +272,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 width: double.infinity,
                 height: 54,
                 child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(
-                        builder: (_) => const DeviceConnectScreen(),
-                      ),
-                    );
-                  },
+                  onPressed: _finishOnboarding,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF0F172A),
                     foregroundColor: Colors.white,
@@ -282,7 +294,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         ),
                       ),
                       SizedBox(width: 8),
-                      Text('→', style: TextStyle(fontSize: 16, color: Colors.white)),
+                      Text(
+                        '→',
+                        style: TextStyle(fontSize: 16, color: Colors.white),
+                      ),
                     ],
                   ),
                 ),
