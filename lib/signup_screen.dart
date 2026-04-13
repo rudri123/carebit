@@ -50,11 +50,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final credential =
-          await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-      );
+      final credential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(
+            email: _emailController.text.trim(),
+            password: _passwordController.text,
+          );
 
       if (_nameController.text.trim().isNotEmpty) {
         await credential.user?.updateDisplayName(_nameController.text.trim());
@@ -195,11 +195,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         fontSize: 16,
         fontWeight: FontWeight.w500,
       ),
-      prefixIcon: Icon(
-        icon,
-        color: const Color(0xFFD6D2C1),
-        size: 22,
-      ),
+      prefixIcon: Icon(icon, color: const Color(0xFFD6D2C1), size: 22),
       suffixIcon: suffixIcon,
       filled: true,
       fillColor: Colors.white,
@@ -425,10 +421,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(20),
                           gradient: const LinearGradient(
-                            colors: [
-                              Color(0xFF2446E8),
-                              Color(0xFF7A2CF3),
-                            ],
+                            colors: [Color(0xFF2446E8), Color(0xFF7A2CF3)],
                           ),
                           boxShadow: [
                             BoxShadow(
@@ -471,7 +464,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         ),
                       ),
                     ),
-                    
+
                     const SizedBox(height: 24),
 
                     // Login row
@@ -484,15 +477,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           ),
                         ),
                         const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 14),
-                        child: Text(
-                          'OR CONTINUE WITH',
+                          padding: EdgeInsets.symmetric(horizontal: 14),
+                          child: Text(
+                            'OR CONTINUE WITH',
                             style: TextStyle(
                               color: Color(0xFFC3C0D8),
                               fontSize: 12,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 1.2,
-                             ),
+                            ),
                           ),
                         ),
                         Expanded(
@@ -503,30 +496,30 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         ),
                       ],
                     ),
-                  const SizedBox(height: 22),
+                    const SizedBox(height: 22),
 
-                   // Google button
+                    // Google button
                     SizedBox(
                       width: double.infinity,
-                        height: 56,
-                        child: OutlinedButton(
-                          onPressed: _isLoading ? null : _handleGoogleSignUp,
-                          style: OutlinedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            side: const BorderSide(color: Color(0xFFE7E7EF)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                          ),
-                          child: const Text(
-                            'Continue with Google',
-                            style: TextStyle(
-                              color: Color(0xFF23235F),
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                            ),
+                      height: 56,
+                      child: OutlinedButton(
+                        onPressed: _isLoading ? null : _handleGoogleSignUp,
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          side: const BorderSide(color: Color(0xFFE7E7EF)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
                           ),
                         ),
+                        child: const Text(
+                          'Continue with Google',
+                          style: TextStyle(
+                            color: Color(0xFF23235F),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 24),
 
