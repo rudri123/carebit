@@ -1,12 +1,10 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'profile_screen.dart';
 import 'health_report_screen.dart';
 import 'community_intro_screen.dart';
 import 'contact_sync_screen.dart';
+import 'alerts_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final List<Map<String, dynamic>> initialFamilyMembers;
@@ -22,74 +20,28 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   int _currentIndex = 0;
-  List<Map<String, dynamic>> _familyMembers = [];
-  bool _isLoadingMembers = true;
+  late List<Map<String, dynamic>> _familyMembers;
 
   @override
   void initState() {
     super.initState();
-    _loadFamilyMembers();
-  }
-
-  Future<void> _loadFamilyMembers() async {
-    final prefs = await SharedPreferences.getInstance();
-
-    // If members were passed from contact sync, use those first and save them
-    if (widget.initialFamilyMembers.isNotEmpty) {
-      _familyMembers = List<Map<String, dynamic>>.from(widget.initialFamilyMembers);
-      await _saveFamilyMembers(_familyMembers);
-    } else {
-      // Otherwise load saved members from local storage
-      final savedMembersString = prefs.getString('family_members');
-      if (savedMembersString != null) {
-        final decoded = jsonDecode(savedMembersString) as List<dynamic>;
-        _familyMembers = decoded
-            .map((item) => Map<String, dynamic>.from(item as Map))
-            .toList();
-      }
-    }
-
-    if (mounted) {
-      setState(() {
-        _isLoadingMembers = false;
-      });
-    }
-  }
-
-  Future<void> _saveFamilyMembers(List<Map<String, dynamic>> members) async {
-    final prefs = await SharedPreferences.getInstance();
-    final encoded = jsonEncode(members);
-    await prefs.setString('family_members', encoded);
-  }
-
-  Future<void> _updateFamilyMembers(List<Map<String, dynamic>> updatedMembers) async {
-    setState(() {
-      _familyMembers = List<Map<String, dynamic>>.from(updatedMembers);
-    });
-
-    await _saveFamilyMembers(_familyMembers);
+    _familyMembers = List<Map<String, dynamic>>.from(widget.initialFamilyMembers);
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoadingMembers) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-
     final pages = [
       _HomeTab(
         familyMembers: _familyMembers,
-        onMembersUpdated: (updatedMembers) async {
-          await _updateFamilyMembers(updatedMembers);
+        onMembersUpdated: (updatedMembers) {
+          setState(() {
+            _familyMembers = updatedMembers;
+          });
         },
       ),
       const HealthReportScreen(),
       const _PlaceholderTab('Community', '💜'),
-      const _PlaceholderTab('Alerts', '🔔'),
+      const AlertsScreen(),
       const ProfileScreen(),
     ];
 
@@ -165,6 +117,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _navFab() {
+    final bool active = false;
+
     return GestureDetector(
       onTap: () {
         if (_familyMembers.isEmpty) {
@@ -229,13 +183,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           const SizedBox(height: 4),
-          const Text(
+          Text(
             'Add',
             style: TextStyle(
               fontFamily: 'DM Sans',
               fontWeight: FontWeight.w700,
               fontSize: 10,
-              color: Color(0xFF8E8CA8),
+              color: active
+                  ? const Color(0xFF4338CA)
+                  : const Color(0xFF8E8CA8),
             ),
           ),
         ],
@@ -272,9 +228,7 @@ class _HomeTabState extends State<_HomeTab> {
   void didUpdateWidget(covariant _HomeTab oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.familyMembers != widget.familyMembers) {
-      setState(() {
-        _familyMembers = List<Map<String, dynamic>>.from(widget.familyMembers);
-      });
+      _familyMembers = List<Map<String, dynamic>>.from(widget.familyMembers);
     }
   }
 
@@ -417,6 +371,93 @@ class _HomeTabState extends State<_HomeTab> {
     }
   }
 
+  void _openAddOrInviteFlow() {
+    if (_familyMembers.isEmpty) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const CommunityIntroScreen(),
+        ),
+      );
+    } else {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ContactSyncScreen(
+            existingFamilyMembers: _familyMembers,
+          ),
+        ),
+      );
+    }
+  }
+
+  void _showInviteDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Invite Loved Ones',
+            style: TextStyle(
+              fontFamily: 'Nunito',
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF1E1B4B),
+            ),
+          ),
+          content: const Text(
+            'Share Carebit with your loved ones so they can join your family health circle.\n\n(For demo: invite link / share feature can be added later.)',
+            style: TextStyle(
+              fontFamily: 'DM Sans',
+              fontSize: 13,
+              height: 1.5,
+              color: Color(0xFF4B5563),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Close',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF6B7280),
+                ),
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Invite feature can be connected later'),
+                    behavior: SnackBarBehavior.floating,
+                    backgroundColor: const Color(0xFF4338CA),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.share_rounded, size: 18),
+              label: const Text(
+                'Share Invite',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4338CA),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildHeader(
     BuildContext context,
     String displayName,
@@ -526,7 +567,7 @@ class _HomeTabState extends State<_HomeTab> {
                 _statDivider(),
                 _statItem(_familyMembers.length.toString(), 'ACTIVE'),
                 _statDivider(),
-                _statItem('0', 'ALERTS'),
+                _statItem('3', 'ALERTS'),
               ],
             ),
           ),
@@ -578,14 +619,56 @@ class _HomeTabState extends State<_HomeTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '👥 Community Members',
-            style: TextStyle(
-              fontFamily: 'Nunito',
-              fontWeight: FontWeight.w900,
-              fontSize: 17,
-              color: Color(0xFF1E1B4B),
-            ),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  '👥 Community Members',
+                  style: TextStyle(
+                    fontFamily: 'Nunito',
+                    fontWeight: FontWeight.w900,
+                    fontSize: 17,
+                    color: Color(0xFF1E1B4B),
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: _showInviteDialog,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5F3FF),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: const Color(0xFFE9D5FF),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.group_add_rounded,
+                        size: 16,
+                        color: Color(0xFF4338CA),
+                      ),
+                      SizedBox(width: 6),
+                      Text(
+                        'Invite',
+                        style: TextStyle(
+                          fontFamily: 'Nunito',
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                          color: Color(0xFF4338CA),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 14),
 
@@ -636,6 +719,35 @@ class _HomeTabState extends State<_HomeTab> {
                       fontSize: 13,
                       color: Color(0xFF6B7280),
                       height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: OutlinedButton.icon(
+                      onPressed: _showInviteDialog,
+                      icon: const Icon(
+                        Icons.share_rounded,
+                        size: 18,
+                        color: Color(0xFF4338CA),
+                      ),
+                      label: const Text(
+                        'Invite Loved Ones',
+                        style: TextStyle(
+                          fontFamily: 'Nunito',
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                          color: Color(0xFF4338CA),
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: const Color(0xFFF8F7FE),
+                        side: const BorderSide(color: Color(0xFFE7E7EF)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
                     ),
                   ),
                 ],

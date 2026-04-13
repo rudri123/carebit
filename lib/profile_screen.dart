@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'home_screen.dart';
 import 'device_connect_screen.dart';
+import 'invite_to_group_screen.dart';
+import 'emergency_alert_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -51,7 +53,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         children: [
                           // Fitbit Connected
                           _buildConnectDeviceButton(),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 12),
+
+                         _buildNavigationButton(
+                           label: 'Invite Loved Ones',
+                           icon: Icons.group_add_rounded,
+                           iconColor: const Color(0xFF7C3AED),
+                           onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                              builder: (_) => const InviteToGroupScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 12),
+
+                        _buildNavigationButton(
+                          label: 'Emergency Alert',
+                          icon: Icons.warning_amber_rounded,
+                          iconColor: const Color(0xFFEF4444),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const EmergencyAlertScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 20),
 
                           // Personal Information
                           _sectionLabel('PERSONAL INFORMATION'),
@@ -296,6 +328,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+
+  Widget _buildNavigationButton({
+  required String label,
+  required IconData icon,
+  required Color iconColor,
+  required VoidCallback onTap,
+}) {
+  return SizedBox(
+    width: double.infinity,
+    height: 56,
+    child: OutlinedButton.icon(
+      onPressed: onTap,
+      icon: Icon(
+        icon,
+        color: iconColor,
+        size: 22,
+      ),
+      label: Text(
+        label,
+        style: const TextStyle(
+          fontFamily: 'Nunito',
+          fontWeight: FontWeight.w800,
+          fontSize: 15,
+          color: Color(0xFF23235F),
+        ),
+      ),
+      style: OutlinedButton.styleFrom(
+        backgroundColor: Colors.white,
+        side: const BorderSide(color: Color(0xFFE7E7EF)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+    ),
+  );
+}
 
   Widget _statItem(String value, String label, {bool border = false}) {
     return Expanded(
