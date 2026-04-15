@@ -12,7 +12,20 @@
           "package_name": "com.example.fitbit"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "175240204876-nbc7ob60pih8crgp67evo6vj8rsjhqk9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.fitbit",
+            "certificate_hash": "cf516e93b03d24f06c1635d6157aa4c02b80b08f"
+          }
+        },
+        {
+          "client_id": "175240204876-dacqkoi7krnunp8jmi2h5i65r9h56hbi.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBiivmc2-kFsDby8cGBX68Ft1QURSPY2l8"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "175240204876-dacqkoi7krnunp8jmi2h5i65r9h56hbi.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "175240204876-m1mvdhhk2ulsbqaqkqa54ea3r367gqd3.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.fitbit"
+              }
+            }
+          ]
         }
       }
     }
