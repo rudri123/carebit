@@ -16,9 +16,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-// Carebit Firebase Functions base URL — project: carebit-e30d4
-// using local Mac IP so it works on physical Android phones.
-const _kBaseUrl = 'http://10.0.0.146:5002/carebit-e30d4/us-central1';
+// Carebit Firebase Functions base URL
+// using local emulator because cloud deploy permission was denied.
+const _kBaseUrl = 'http://10.0.2.2:5002/fitbit-project-58078/us-central1';
 // ────────────────────────────────────────────────────────────────────────────
 
 /// The custom URI scheme that Fitbit redirects back to after OAuth.
@@ -82,8 +82,11 @@ class FitbitService {
   /// Returns the Fitbit OAuth URL to open in a browser, along with the
   /// `state` parameter that must be forwarded back in [exchangeCallback].
   Future<({String authUrl, String state})> getAuthUrl() async {
+    // Generate a unique state for this login session
+    final generatedState = DateTime.now().millisecondsSinceEpoch.toString();
+    
     final uri = Uri.parse('$_kBaseUrl/fitbitAuthStart').replace(
-      queryParameters: {'mode': 'json'},
+      queryParameters: {'mode': 'json', 'state': generatedState},
     );
     final response = await http.get(uri).timeout(const Duration(seconds: 15));
     final body = _parseBody(response);
@@ -99,11 +102,8 @@ class FitbitService {
       throw const FitbitServiceException('Backend returned no auth URL.');
     }
 
-    // Extract the `state` the backend embedded in the URL so we can poll later.
-    final parsedAuthUrl = Uri.parse(authUrl);
-    final state = parsedAuthUrl.queryParameters['state'] ?? '';
-
-    return (authUrl: authUrl, state: state);
+    // Return the generated state alongside the url
+    return (authUrl: authUrl, state: generatedState);
   }
 
   // ── 2. Exchange the OAuth callback code for tokens ─────────────────────────
