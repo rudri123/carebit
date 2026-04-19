@@ -378,8 +378,8 @@ class _DeviceConnectScreenState extends State<DeviceConnectScreen> {
                             ),
                             Text(
                               _batteryLevel.isNotEmpty
-                                  ? 'Battery: $_batteryLevel · syncing data…'
-                                  : 'syncing data now…',
+                                  ? 'Battery: $_batteryLevel · Ready to go!'
+                                  : 'Device ready · tap Continue',
                               style: TextStyle(
                                 fontFamily: 'DM Sans',
                                 fontSize: 11,
@@ -389,14 +389,17 @@ class _DeviceConnectScreenState extends State<DeviceConnectScreen> {
                           ],
                         ),
                       ),
-                      const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Colors.white70,
-                          ),
+                      Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(
+                          Icons.check_rounded,
+                          color: Colors.white,
+                          size: 18,
                         ),
                       ),
                     ],

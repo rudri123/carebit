@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -7,14 +8,14 @@ import 'profile_screen.dart';
 import 'health_report_screen.dart';
 import 'community_intro_screen.dart';
 import 'contact_sync_screen.dart';
+import 'device_connect_screen.dart';
+import 'fitbit_metrics.dart';
+import 'fitbit_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   final List<Map<String, dynamic>> initialFamilyMembers;
 
-  const DashboardScreen({
-    super.key,
-    this.initialFamilyMembers = const [],
-  });
+  const DashboardScreen({super.key, this.initialFamilyMembers = const []});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -36,7 +37,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     // If members were passed from contact sync, use those first and save them
     if (widget.initialFamilyMembers.isNotEmpty) {
-      _familyMembers = List<Map<String, dynamic>>.from(widget.initialFamilyMembers);
+      _familyMembers = List<Map<String, dynamic>>.from(
+        widget.initialFamilyMembers,
+      );
       await _saveFamilyMembers(_familyMembers);
     } else {
       // Otherwise load saved members from local storage
@@ -62,7 +65,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     await prefs.setString('family_members', encoded);
   }
 
-  Future<void> _updateFamilyMembers(List<Map<String, dynamic>> updatedMembers) async {
+  Future<void> _updateFamilyMembers(
+    List<Map<String, dynamic>> updatedMembers,
+  ) async {
     setState(() {
       _familyMembers = List<Map<String, dynamic>>.from(updatedMembers);
     });
@@ -73,11 +78,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoadingMembers) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     final pages = [
@@ -169,16 +170,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       onTap: () {
         if (_familyMembers.isEmpty) {
           Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => const CommunityIntroScreen(),
-            ),
+            MaterialPageRoute(builder: (_) => const CommunityIntroScreen()),
           );
         } else {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => ContactSyncScreen(
-                existingFamilyMembers: _familyMembers,
-              ),
+              builder: (_) =>
+                  ContactSyncScreen(existingFamilyMembers: _familyMembers),
             ),
           );
         }
@@ -210,19 +208,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  Icon(
-                    Icons.favorite_rounded,
-                    color: Colors.white,
-                    size: 24,
-                  ),
+                  Icon(Icons.favorite_rounded, color: Colors.white, size: 24),
                   Positioned(
                     right: 7,
                     top: 9,
-                    child: Icon(
-                      Icons.add,
-                      color: Colors.white,
-                      size: 12,
-                    ),
+                    child: Icon(Icons.add, color: Colors.white, size: 12),
                   ),
                 ],
               ),
@@ -262,10 +252,74 @@ class _HomeTab extends StatefulWidget {
 class _HomeTabState extends State<_HomeTab> {
   late List<Map<String, dynamic>> _familyMembers;
 
+  // ── Fitbit connection status ─────────────────────────────────────────────
+  bool _fitbitChecking = true;
+  bool _fitbitConnected = false;
+  Map<String, dynamic>? _liveMetrics; // mini vitals when connected
+  Timer? _fitbitStatusTimer;
+
   @override
   void initState() {
     super.initState();
     _familyMembers = List<Map<String, dynamic>>.from(widget.familyMembers);
+    _checkFitbitStatus();
+    // Re-check every 10 minutes (avoiding rate limits)
+    _fitbitStatusTimer = Timer.periodic(
+      const Duration(minutes: 10),
+      (_) => _checkFitbitStatus(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _fitbitStatusTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _checkFitbitStatus() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        if (mounted)
+          setState(() {
+            _fitbitChecking = false;
+          });
+        return;
+      }
+      final idToken = await user.getIdToken();
+      if (idToken == null) {
+        if (mounted)
+          setState(() {
+            _fitbitChecking = false;
+          });
+        return;
+      }
+      final metrics = await FitbitService.instance.fetchMyMetrics(
+        idToken: idToken,
+      );
+      if (mounted) {
+        setState(() {
+          _fitbitConnected = true;
+          _liveMetrics = metrics;
+          _fitbitChecking = false;
+        });
+      }
+    } on FitbitServiceException catch (e) {
+      // 404 = no connection; other errors = treat as not connected
+      if (mounted) {
+        setState(() {
+          _fitbitConnected =
+              e.message.toLowerCase().contains('connect') == false &&
+              !e.message.contains('No Fitbit connection');
+          _fitbitChecking = false;
+        });
+      }
+    } catch (_) {
+      if (mounted)
+        setState(() {
+          _fitbitChecking = false;
+        });
+    }
   }
 
   @override
@@ -296,7 +350,9 @@ class _HomeTabState extends State<_HomeTab> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildHeader(context, displayName, greeting, user),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
+                  _buildFitbitBanner(context),
+                  const SizedBox(height: 8),
                   _buildCommunityCards(context),
                   const SizedBox(height: 24),
                   _buildUpcoming(),
@@ -425,8 +481,18 @@ class _HomeTabState extends State<_HomeTab> {
   ) {
     final now = DateTime.now();
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     final dateStr = '${months[now.month - 1]} ${now.day}, ${now.year}';
 
@@ -662,9 +728,9 @@ class _HomeTabState extends State<_HomeTab> {
                   ],
                 ),
                 child: Theme(
-                  data: Theme.of(context).copyWith(
-                    dividerColor: Colors.transparent,
-                  ),
+                  data: Theme.of(
+                    context,
+                  ).copyWith(dividerColor: Colors.transparent),
                   child: ExpansionTile(
                     tilePadding: const EdgeInsets.symmetric(
                       horizontal: 14,
@@ -740,7 +806,10 @@ class _HomeTabState extends State<_HomeTab> {
                         childAspectRatio: 2.4,
                         children: [
                           _metricCard('Battery', member['battery'] as String),
-                          _metricCard('Resting HR', member['restingHr'] as String),
+                          _metricCard(
+                            'Resting HR',
+                            member['restingHr'] as String,
+                          ),
                           _metricCard('SpO2', member['spo2'] as String),
                           _metricCard('BMR', member['bmr'] as String),
                           _metricCard('Steps Today', member['steps'] as String),
@@ -790,6 +859,243 @@ class _HomeTabState extends State<_HomeTab> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // ── Fitbit connection banner ────────────────────────────────────────────────
+  Widget _buildFitbitBanner(BuildContext context) {
+    if (_fitbitChecking) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF4338CA).withOpacity(0.06),
+                blurRadius: 12,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: const Row(
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Color(0xFF4338CA),
+                ),
+              ),
+              SizedBox(width: 12),
+              Text(
+                'Checking Fitbit status…',
+                style: TextStyle(
+                  fontFamily: 'DM Sans',
+                  fontSize: 13,
+                  color: Color(0xFF6B7280),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (!_fitbitConnected) {
+      // ── NOT CONNECTED — call-to-action banner ──
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: GestureDetector(
+          onTap: () async {
+            await Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const DeviceConnectScreen()),
+            );
+            // Re-check status when user comes back
+            _checkFitbitStatus();
+          },
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFFF7ED), Color(0xFFFEF3C7)],
+              ),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: const Color(0xFFF59E0B).withOpacity(0.4),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFF59E0B).withOpacity(0.15),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF59E0B).withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Center(
+                    child: Text('⌚', style: TextStyle(fontSize: 24)),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Fitbit not connected',
+                        style: TextStyle(
+                          fontFamily: 'Nunito',
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                          color: Color(0xFF92400E),
+                        ),
+                      ),
+                      SizedBox(height: 3),
+                      Text(
+                        'Tap to connect your Fitbit and see real‑time vitals',
+                        style: TextStyle(
+                          fontFamily: 'DM Sans',
+                          fontSize: 12,
+                          color: Color(0xFFB45309),
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF59E0B),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.arrow_forward_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // ── CONNECTED — mini live vitals card ──
+    int? heartRate;
+    int? spo2;
+    int? steps;
+    try {
+      heartRate = readFitbitHeartRate(_liveMetrics).value;
+    } catch (_) {}
+    try {
+      final spo2Raw = _liveMetrics?['oxygenSaturation'];
+      final spo2Val = (spo2Raw as Map<String, dynamic>?)?['value'];
+      if (spo2Val is num) spo2 = spo2Val.round();
+    } catch (_) {}
+    try {
+      final actStr = _liveMetrics?['activities'];
+      final summary =
+          (actStr as Map<String, dynamic>?)?['summary']
+              as Map<String, dynamic>?;
+      final stepsVal = summary?['steps'];
+      if (stepsVal is num) steps = stepsVal.toInt();
+    } catch (_) {}
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFECFDF5), Color(0xFFD1FAE5)],
+          ),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFF10B981).withOpacity(0.35)),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF10B981).withOpacity(0.12),
+              blurRadius: 14,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Green pulse dot
+            Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                color: const Color(0xFF10B981),
+                borderRadius: BorderRadius.circular(5),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF10B981).withOpacity(0.5),
+                    blurRadius: 8,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Text('⌚', style: TextStyle(fontSize: 20)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Fitbit Connected · LIVE',
+                    style: TextStyle(
+                      fontFamily: 'Nunito',
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                      color: Color(0xFF065F46),
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    [
+                      if (steps != null) 'Steps: $steps',
+                      if (heartRate != null) 'HR: $heartRate bpm',
+                      if (spo2 != null) 'SpO₂: $spo2%',
+                      if (heartRate == null && spo2 == null && steps == null)
+                        'Live data synced',
+                    ].join('  ·  '),
+                    style: const TextStyle(
+                      fontFamily: 'DM Sans',
+                      fontSize: 12,
+                      color: Color(0xFF047857),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            GestureDetector(
+              onTap: _checkFitbitStatus,
+              child: const Icon(
+                Icons.refresh_rounded,
+                color: Color(0xFF10B981),
+                size: 20,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

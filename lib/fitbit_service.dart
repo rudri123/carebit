@@ -1,7 +1,7 @@
 // fitbit_service.dart
 //
-// Wires the FITBIT_PROJECT/fitbit Flutter front-end to the Carebit_ Cloud
-// Functions backend.  This file is the ONLY place that knows the backend URL
+// Wires the FITBIT_PROJECT/fitbit Flutter front-end to the Firebase
+// Functions backend. This file is the ONLY place that knows the backend URL
 // and the Fitbit redirect URI — keep them in sync with the backend .env:
 //   FITBIT_REDIRECT_URI = carebit://fitbit-callback
 //
@@ -16,9 +16,8 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-// Carebit Firebase Functions base URL — project: carebit-e30d4
-// using local Mac IP so it works on physical Android phones.
-const _kBaseUrl = 'http://10.0.0.146:5002/carebit-e30d4/us-central1';
+// Local Firebase Functions emulator base URL.
+const _kBaseUrl = 'http://10.0.2.2:5002/fitbit-project-58078/us-central1';
 // ────────────────────────────────────────────────────────────────────────────
 
 /// The custom URI scheme that Fitbit redirects back to after OAuth.
@@ -82,9 +81,12 @@ class FitbitService {
   /// Returns the Fitbit OAuth URL to open in a browser, along with the
   /// `state` parameter that must be forwarded back in [exchangeCallback].
   Future<({String authUrl, String state})> getAuthUrl() async {
-    final uri = Uri.parse('$_kBaseUrl/fitbitAuthStart').replace(
-      queryParameters: {'mode': 'json'},
-    );
+    // Generate a unique state for this login session
+    final generatedState = DateTime.now().millisecondsSinceEpoch.toString();
+
+    final uri = Uri.parse(
+      '$_kBaseUrl/fitbitAuthStart',
+    ).replace(queryParameters: {'mode': 'json', 'state': generatedState});
     final response = await http.get(uri).timeout(const Duration(seconds: 15));
     final body = _parseBody(response);
 
@@ -99,11 +101,8 @@ class FitbitService {
       throw const FitbitServiceException('Backend returned no auth URL.');
     }
 
-    // Extract the `state` the backend embedded in the URL so we can poll later.
-    final parsedAuthUrl = Uri.parse(authUrl);
-    final state = parsedAuthUrl.queryParameters['state'] ?? '';
-
-    return (authUrl: authUrl, state: state);
+    // Return the generated state alongside the url
+    return (authUrl: authUrl, state: generatedState);
   }
 
   // ── 2. Exchange the OAuth callback code for tokens ─────────────────────────
@@ -159,13 +158,12 @@ class FitbitService {
     Duration interval = const Duration(seconds: 2),
   }) async {
     for (var attempt = 0; attempt < maxAttempts; attempt++) {
-      final uri = Uri.parse('$_kBaseUrl/fitbitAuthCallbackStatus').replace(
-        queryParameters: {'state': state},
-      );
-      final response = await http.get(
-        uri,
-        headers: {'Authorization': 'Bearer $idToken'},
-      ).timeout(const Duration(seconds: 15));
+      final uri = Uri.parse(
+        '$_kBaseUrl/fitbitAuthCallbackStatus',
+      ).replace(queryParameters: {'state': state});
+      final response = await http
+          .get(uri, headers: {'Authorization': 'Bearer $idToken'})
+          .timeout(const Duration(seconds: 15));
 
       final body = _parseBody(response);
 
@@ -199,15 +197,38 @@ class FitbitService {
     );
   }
 
-  // ── 4. Fetch raw device list (optional / debug) ───────────────────────────
+  // ── 5. Fetch MY health metrics (uses stored token from Firestore) ─────────
+
+  /// Fetches the authenticated user's real-time health metrics.
+  /// Only requires a Firebase [idToken] — the backend reads the stored
+  /// Fitbit access token from Firestore automatically.
+  Future<Map<String, dynamic>> fetchMyMetrics({required String idToken}) async {
+    final now = DateTime.now();
+    final dateStr =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final uri = Uri.parse('$_kBaseUrl/fitbitMyMetrics?date=$dateStr');
+    final response = await http
+        .get(uri, headers: {'Authorization': 'Bearer $idToken'})
+        .timeout(const Duration(seconds: 20));
+
+    final body = _parseBody(response);
+    if (body['ok'] != true) {
+      throw FitbitServiceException(
+        body['error'] as String? ?? 'Could not fetch your health metrics.',
+      );
+    }
+
+    return (body['metrics'] as Map<String, dynamic>?) ?? {};
+  }
+
+  // ── 6. Fetch raw device list (optional / debug) ───────────────────────────
 
   /// Fetches the list of Fitbit devices using a Fitbit [accessToken].
   Future<List<dynamic>> fetchDevices(String accessToken) async {
     final uri = Uri.parse('$_kBaseUrl/fitbitDevices');
-    final response = await http.get(
-      uri,
-      headers: {'Authorization': 'Bearer $accessToken'},
-    ).timeout(const Duration(seconds: 15));
+    final response = await http
+        .get(uri, headers: {'Authorization': 'Bearer $accessToken'})
+        .timeout(const Duration(seconds: 15));
 
     final body = _parseBody(response);
     if (body['ok'] != true) {
@@ -225,10 +246,9 @@ class FitbitService {
   /// Requires a valid Fitbit [accessToken].
   Future<Map<String, dynamic>> fetchHealthMetrics(String accessToken) async {
     final uri = Uri.parse('$_kBaseUrl/fitbitHealthMetrics');
-    final response = await http.get(
-      uri,
-      headers: {'Authorization': 'Bearer $accessToken'},
-    ).timeout(const Duration(seconds: 20));
+    final response = await http
+        .get(uri, headers: {'Authorization': 'Bearer $accessToken'})
+        .timeout(const Duration(seconds: 20));
 
     final body = _parseBody(response);
     if (body['ok'] != true) {

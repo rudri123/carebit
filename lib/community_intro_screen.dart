@@ -2,7 +2,12 @@ import 'package:flutter/material.dart';
 import 'contact_sync_screen.dart';
 
 class CommunityIntroScreen extends StatelessWidget {
-  const CommunityIntroScreen({super.key});
+  final List<Map<String, dynamic>> existingFamilyMembers;
+
+  const CommunityIntroScreen({
+    super.key,
+    this.existingFamilyMembers = const [],
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +32,30 @@ class CommunityIntroScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 24),
+                const SizedBox(height: 8),
+
+                // ── Back button ──
+                GestureDetector(
+                  onTap: () => Navigator.of(context).pop(),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.10),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.15),
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.arrow_back_ios_new,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
 
                 // ── CAREBIT label ──
                 Text(
@@ -58,7 +86,9 @@ class CommunityIntroScreen extends StatelessWidget {
 
                 // ── Subtitle ──
                 Text(
-                  'Create a family group to share health\nupdates and stay connected',
+                  existingFamilyMembers.isEmpty
+                      ? 'Create a family group to share health\nupdates and stay connected'
+                      : 'Manage your family group and add or remove\nmembers anytime',
                   style: TextStyle(
                     fontFamily: 'DM Sans',
                     fontSize: 14,
@@ -100,7 +130,9 @@ class CommunityIntroScreen extends StatelessWidget {
                     onPressed: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) => const ContactSyncScreen(),
+                          builder: (_) => ContactSyncScreen(
+                            existingFamilyMembers: existingFamilyMembers,
+                          ),
                         ),
                       );
                     },
@@ -112,9 +144,11 @@ class CommunityIntroScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    child: const Text(
-                      'Create Family Group',
-                      style: TextStyle(
+                    child: Text(
+                      existingFamilyMembers.isEmpty
+                          ? 'Create Family Group'
+                          : 'Manage Family Group',
+                      style: const TextStyle(
                         fontFamily: 'Nunito',
                         fontWeight: FontWeight.w800,
                         fontSize: 15,

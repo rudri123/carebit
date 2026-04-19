@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dashboard_screen.dart';
 
 // ── Dummy contact model ──
@@ -76,23 +78,29 @@ class _ContactSyncScreenState extends State<ContactSyncScreen> {
   int get _selectedCount => _contacts.where((c) => c.selected).length;
 
   @override
+  void initState() {
+    super.initState();
+
+    // Pre-select already added members
+    final existingNames = widget.existingFamilyMembers
+        .map((m) => (m['name'] as String).toLowerCase().trim())
+        .toSet();
+
+    for (final contact in _contacts) {
+      if (existingNames.contains(contact.name.toLowerCase().trim())) {
+        contact.selected = true;
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
   }
 
-  bool _isAlreadyAdded(_Contact contact) {
-    final existingNames = widget.existingFamilyMembers
-        .map((m) => (m['name'] as String).toLowerCase().trim())
-        .toSet();
-
-    return existingNames.contains(contact.name.toLowerCase().trim());
-  }
-
   List<Map<String, dynamic>> _buildSelectedFamilyMembers() {
-    final selectedContacts = _contacts
-        .where((c) => c.selected && !_isAlreadyAdded(c))
-        .toList();
+    final selectedContacts = _contacts.where((c) => c.selected).toList();
 
     final colors = [
       0xFF3B82F6,
@@ -120,41 +128,23 @@ class _ContactSyncScreenState extends State<ContactSyncScreen> {
     });
   }
 
-  List<Map<String, dynamic>> _mergeMembersWithoutDuplicates(
-    List<Map<String, dynamic>> existing,
-    List<Map<String, dynamic>> selected,
-  ) {
-    final Map<String, Map<String, dynamic>> merged = {};
-
-    // Keep existing members first
-    for (final member in existing) {
-      final name = (member['name'] as String).toLowerCase().trim();
-      merged[name] = Map<String, dynamic>.from(member);
-    }
-
-    // Add only new selected members
-    for (final member in selected) {
-      final name = (member['name'] as String).toLowerCase().trim();
-      if (!merged.containsKey(name)) {
-        merged[name] = Map<String, dynamic>.from(member);
-      }
-    }
-
-    return merged.values.toList();
+  Future<void> _saveFamilyMembers(List<Map<String, dynamic>> members) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('family_members', jsonEncode(members));
   }
 
-  void _goToDashboardWithMergedMembers() {
+  Future<void> _goToDashboardWithSelectedMembers() async {
     final selectedMembers = _buildSelectedFamilyMembers();
 
-    final mergedMembers = _mergeMembersWithoutDuplicates(
-      widget.existingFamilyMembers,
-      selectedMembers,
-    );
+    // Save to SharedPreferences
+    await _saveFamilyMembers(selectedMembers);
+
+    if (!mounted) return;
 
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(
         builder: (_) => DashboardScreen(
-          initialFamilyMembers: mergedMembers,
+          initialFamilyMembers: selectedMembers,
         ),
       ),
       (route) => false,
@@ -163,6 +153,8 @@ class _ContactSyncScreenState extends State<ContactSyncScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bool hasExistingMembers = widget.existingFamilyMembers.isNotEmpty;
+
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -215,7 +207,7 @@ class _ContactSyncScreenState extends State<ContactSyncScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 28),
                 child: Text(
-                  'STEP 1 OF 2',
+                  hasExistingMembers ? 'MANAGE FAMILY GROUP' : 'STEP 1 OF 2',
                   style: TextStyle(
                     fontFamily: 'DM Sans',
                     fontWeight: FontWeight.w800,
@@ -227,13 +219,15 @@ class _ContactSyncScreenState extends State<ContactSyncScreen> {
               ),
               const SizedBox(height: 8),
 
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 28),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28),
                 child: Row(
                   children: [
                     Text(
-                      'Sync Your Contacts',
-                      style: TextStyle(
+                      hasExistingMembers
+                          ? 'Manage Family Members'
+                          : 'Sync Your Contacts',
+                      style: const TextStyle(
                         fontFamily: 'Nunito',
                         fontWeight: FontWeight.w900,
                         fontSize: 24,
@@ -241,8 +235,8 @@ class _ContactSyncScreenState extends State<ContactSyncScreen> {
                         letterSpacing: -0.3,
                       ),
                     ),
-                    SizedBox(width: 8),
-                    Text('📱', style: TextStyle(fontSize: 22)),
+                    const SizedBox(width: 8),
+                    const Text('📱', style: TextStyle(fontSize: 22)),
                   ],
                 ),
               ),
@@ -251,7 +245,9 @@ class _ContactSyncScreenState extends State<ContactSyncScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 28),
                 child: Text(
-                  'Select family members to add to your group',
+                  hasExistingMembers
+                      ? 'Select or unselect family members to update your group'
+                      : 'Select family members to add to your group',
                   style: TextStyle(
                     fontFamily: 'DM Sans',
                     fontSize: 13,
@@ -370,27 +366,19 @@ class _ContactSyncScreenState extends State<ContactSyncScreen> {
                           width: double.infinity,
                           height: 52,
                           child: ElevatedButton(
-                            onPressed: _selectedCount > 0
-                                ? _goToDashboardWithMergedMembers
-                                : null,
+                            onPressed: _goToDashboardWithSelectedMembers,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: _selectedCount > 0
-                                  ? const Color(0xFFEF4444)
-                                  : const Color(0xFFE5E7EB),
-                              foregroundColor: _selectedCount > 0
-                                  ? Colors.white
-                                  : const Color(0xFF9CA3AF),
+                              backgroundColor: const Color(0xFFEF4444),
+                              foregroundColor: Colors.white,
                               elevation: 0,
-                              disabledBackgroundColor:
-                                  const Color(0xFFE5E7EB),
-                              disabledForegroundColor:
-                                  const Color(0xFF9CA3AF),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(16),
                               ),
                             ),
                             child: Text(
-                              'Continue ($_selectedCount)',
+                              hasExistingMembers
+                                  ? 'Save Changes ($_selectedCount)'
+                                  : 'Continue ($_selectedCount)',
                               style: const TextStyle(
                                 fontFamily: 'Nunito',
                                 fontWeight: FontWeight.w800,
@@ -412,29 +400,21 @@ class _ContactSyncScreenState extends State<ContactSyncScreen> {
   }
 
   Widget _contactTile(_Contact contact) {
-    final alreadyAdded = _isAlreadyAdded(contact);
-
     return GestureDetector(
-      onTap: alreadyAdded
-          ? null
-          : () => setState(() => contact.selected = !contact.selected),
+      onTap: () => setState(() => contact.selected = !contact.selected),
       child: Container(
         margin: const EdgeInsets.only(bottom: 4),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
-          color: alreadyAdded
-              ? const Color(0xFFECFDF5)
-              : contact.selected
-                  ? const Color(0xFF4338CA).withOpacity(0.06)
-                  : Colors.transparent,
+          color: contact.selected
+              ? const Color(0xFF4338CA).withOpacity(0.06)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(14),
-          border: alreadyAdded
-              ? Border.all(color: const Color(0xFF10B981).withOpacity(0.25))
-              : contact.selected
-                  ? Border.all(
-                      color: const Color(0xFF4338CA).withOpacity(0.15),
-                    )
-                  : null,
+          border: contact.selected
+              ? Border.all(
+                  color: const Color(0xFF4338CA).withOpacity(0.15),
+                )
+              : null,
         ),
         child: Row(
           children: [
@@ -442,23 +422,16 @@ class _ContactSyncScreenState extends State<ContactSyncScreen> {
               width: 46,
               height: 46,
               decoration: BoxDecoration(
-                color: alreadyAdded
-                    ? const Color(0xFF10B981).withOpacity(0.10)
-                    : contact.selected
-                        ? const Color(0xFF4338CA).withOpacity(0.12)
-                        : const Color(0xFFF3F4F6),
+                color: contact.selected
+                    ? const Color(0xFF4338CA).withOpacity(0.12)
+                    : const Color(0xFFF3F4F6),
                 borderRadius: BorderRadius.circular(23),
-                border: alreadyAdded
+                border: contact.selected
                     ? Border.all(
-                        color: const Color(0xFF10B981).withOpacity(0.3),
+                        color: const Color(0xFF4338CA).withOpacity(0.3),
                         width: 2,
                       )
-                    : contact.selected
-                        ? Border.all(
-                            color: const Color(0xFF4338CA).withOpacity(0.3),
-                            width: 2,
-                          )
-                        : null,
+                    : null,
               ),
               child: Center(
                 child: Text(
@@ -479,33 +452,28 @@ class _ContactSyncScreenState extends State<ContactSyncScreen> {
                       fontFamily: 'Nunito',
                       fontWeight: FontWeight.w800,
                       fontSize: 14,
-                      color: alreadyAdded
-                          ? const Color(0xFF065F46)
-                          : contact.selected
-                              ? const Color(0xFF1E1B4B)
-                              : const Color(0xFF374151),
+                      color: contact.selected
+                          ? const Color(0xFF1E1B4B)
+                          : const Color(0xFF374151),
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    alreadyAdded ? 'Already added' : contact.role,
+                    contact.role,
                     style: TextStyle(
                       fontFamily: 'DM Sans',
                       fontSize: 11.5,
-                      color: alreadyAdded
-                          ? const Color(0xFF10B981)
-                          : Colors.grey[500],
+                      color: Colors.grey[500],
                     ),
                   ),
-                  if (!alreadyAdded)
-                    Text(
-                      contact.phone,
-                      style: TextStyle(
-                        fontFamily: 'DM Sans',
-                        fontSize: 11,
-                        color: Colors.grey[400],
-                      ),
+                  Text(
+                    contact.phone,
+                    style: TextStyle(
+                      fontFamily: 'DM Sans',
+                      fontSize: 11,
+                      color: Colors.grey[400],
                     ),
+                  ),
                 ],
               ),
             ),
@@ -515,25 +483,19 @@ class _ContactSyncScreenState extends State<ContactSyncScreen> {
               height: 26,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: alreadyAdded
-                    ? const Color(0xFF10B981)
-                    : contact.selected
-                        ? const Color(0xFF4338CA)
-                        : Colors.transparent,
+                color: contact.selected
+                    ? const Color(0xFF4338CA)
+                    : Colors.transparent,
                 border: Border.all(
-                  color: alreadyAdded
-                      ? const Color(0xFF10B981)
-                      : contact.selected
-                          ? const Color(0xFF4338CA)
-                          : const Color(0xFFD1D5DB),
+                  color: contact.selected
+                      ? const Color(0xFF4338CA)
+                      : const Color(0xFFD1D5DB),
                   width: 2,
                 ),
               ),
-              child: alreadyAdded
+              child: contact.selected
                   ? const Icon(Icons.check, color: Colors.white, size: 16)
-                  : contact.selected
-                      ? const Icon(Icons.check, color: Colors.white, size: 16)
-                      : null,
+                  : null,
             ),
           ],
         ),
