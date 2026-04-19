@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,9 +7,13 @@ import 'profile_screen.dart';
 import 'health_report_screen.dart';
 import 'community_intro_screen.dart';
 import 'contact_sync_screen.dart';
+<<<<<<< HEAD
 import 'device_connect_screen.dart';
 import 'fitbit_metrics.dart';
 import 'fitbit_service.dart';
+=======
+import 'alerts_screen.dart';
+>>>>>>> bhavishya-dev
 
 class DashboardScreen extends StatefulWidget {
   final List<Map<String, dynamic>> initialFamilyMembers;
@@ -34,22 +37,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _loadFamilyMembers() async {
     final prefs = await SharedPreferences.getInstance();
+    final savedData = prefs.getString('family_members');
 
+<<<<<<< HEAD
     // If members were passed from contact sync, use those first and save them
     if (widget.initialFamilyMembers.isNotEmpty) {
       _familyMembers = List<Map<String, dynamic>>.from(
         widget.initialFamilyMembers,
       );
       await _saveFamilyMembers(_familyMembers);
+=======
+    if (savedData != null && savedData.isNotEmpty) {
+      final List<dynamic> decoded = jsonDecode(savedData);
+      _familyMembers = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
+>>>>>>> bhavishya-dev
     } else {
-      // Otherwise load saved members from local storage
-      final savedMembersString = prefs.getString('family_members');
-      if (savedMembersString != null) {
-        final decoded = jsonDecode(savedMembersString) as List<dynamic>;
-        _familyMembers = decoded
-            .map((item) => Map<String, dynamic>.from(item as Map))
-            .toList();
-      }
+      _familyMembers = List<Map<String, dynamic>>.from(widget.initialFamilyMembers);
     }
 
     if (mounted) {
@@ -61,10 +64,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _saveFamilyMembers(List<Map<String, dynamic>> members) async {
     final prefs = await SharedPreferences.getInstance();
-    final encoded = jsonEncode(members);
-    await prefs.setString('family_members', encoded);
-  }
+    await prefs.setString('family_members', jsonEncode(members));
 
+<<<<<<< HEAD
   Future<void> _updateFamilyMembers(
     List<Map<String, dynamic>> updatedMembers,
   ) async {
@@ -73,6 +75,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
 
     await _saveFamilyMembers(_familyMembers);
+=======
+    if (mounted) {
+      setState(() {
+        _familyMembers = members;
+      });
+    }
+>>>>>>> bhavishya-dev
   }
 
   @override
@@ -85,12 +94,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _HomeTab(
         familyMembers: _familyMembers,
         onMembersUpdated: (updatedMembers) async {
-          await _updateFamilyMembers(updatedMembers);
+          await _saveFamilyMembers(updatedMembers);
         },
       ),
       const HealthReportScreen(),
       const _PlaceholderTab('Community', '💜'),
-      const _PlaceholderTab('Alerts', '🔔'),
+      const AlertsScreen(),
       const ProfileScreen(),
     ];
 
@@ -166,11 +175,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _navFab() {
+    final bool active = false;
+
     return GestureDetector(
       onTap: () {
         if (_familyMembers.isEmpty) {
           Navigator.of(context).push(
+<<<<<<< HEAD
             MaterialPageRoute(builder: (_) => const CommunityIntroScreen()),
+=======
+            MaterialPageRoute(
+              builder: (_) => CommunityIntroScreen(
+                existingFamilyMembers: _familyMembers,
+              ),
+            ),
+>>>>>>> bhavishya-dev
           );
         } else {
           Navigator.of(context).push(
@@ -219,13 +238,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           const SizedBox(height: 4),
-          const Text(
+          Text(
             'Add',
             style: TextStyle(
               fontFamily: 'DM Sans',
               fontWeight: FontWeight.w700,
               fontSize: 10,
-              color: Color(0xFF8E8CA8),
+              color: active
+                  ? const Color(0xFF4338CA)
+                  : const Color(0xFF8E8CA8),
             ),
           ),
         ],
@@ -473,6 +494,128 @@ class _HomeTabState extends State<_HomeTab> {
     }
   }
 
+  void _showInviteEmailDialog() {
+    final emailController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Invite Loved Ones',
+            style: TextStyle(
+              fontFamily: 'Nunito',
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF1E1B4B),
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Send an email invitation so your loved ones can join your Carebit family circle.',
+                style: TextStyle(
+                  fontFamily: 'DM Sans',
+                  fontSize: 13,
+                  height: 1.5,
+                  color: Color(0xFF4B5563),
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: InputDecoration(
+                  hintText: 'Enter email address',
+                  filled: true,
+                  fillColor: const Color(0xFFF8F7FE),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: Color(0xFFE7E7EF)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: Color(0xFFE7E7EF)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF4338CA),
+                      width: 1.5,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF6B7280),
+                ),
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                final email = emailController.text.trim();
+
+                if (email.isEmpty || !email.contains('@')) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('Please enter a valid email address'),
+                      behavior: SnackBarBehavior.floating,
+                      backgroundColor: Colors.red[600],
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  );
+                  return;
+                }
+
+                Navigator.pop(context);
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Invitation sent to $email'),
+                    behavior: SnackBarBehavior.floating,
+                    backgroundColor: const Color(0xFF4338CA),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.email_outlined, size: 18),
+              label: const Text(
+                'Send Invite',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4338CA),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildHeader(
     BuildContext context,
     String displayName,
@@ -592,7 +735,7 @@ class _HomeTabState extends State<_HomeTab> {
                 _statDivider(),
                 _statItem(_familyMembers.length.toString(), 'ACTIVE'),
                 _statDivider(),
-                _statItem('0', 'ALERTS'),
+                _statItem('3', 'ALERTS'),
               ],
             ),
           ),
@@ -644,14 +787,56 @@ class _HomeTabState extends State<_HomeTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '👥 Community Members',
-            style: TextStyle(
-              fontFamily: 'Nunito',
-              fontWeight: FontWeight.w900,
-              fontSize: 17,
-              color: Color(0xFF1E1B4B),
-            ),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  '👥 Community Members',
+                  style: TextStyle(
+                    fontFamily: 'Nunito',
+                    fontWeight: FontWeight.w900,
+                    fontSize: 17,
+                    color: Color(0xFF1E1B4B),
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: _showInviteEmailDialog,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5F3FF),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: const Color(0xFFE9D5FF),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.email_outlined,
+                        size: 16,
+                        color: Color(0xFF4338CA),
+                      ),
+                      SizedBox(width: 6),
+                      Text(
+                        'Invite',
+                        style: TextStyle(
+                          fontFamily: 'Nunito',
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                          color: Color(0xFF4338CA),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 14),
 
@@ -702,6 +887,35 @@ class _HomeTabState extends State<_HomeTab> {
                       fontSize: 13,
                       color: Color(0xFF6B7280),
                       height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: OutlinedButton.icon(
+                      onPressed: _showInviteEmailDialog,
+                      icon: const Icon(
+                        Icons.email_outlined,
+                        size: 18,
+                        color: Color(0xFF4338CA),
+                      ),
+                      label: const Text(
+                        'Invite by Email',
+                        style: TextStyle(
+                          fontFamily: 'Nunito',
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                          color: Color(0xFF4338CA),
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: const Color(0xFFF8F7FE),
+                        side: const BorderSide(color: Color(0xFFE7E7EF)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
                     ),
                   ),
                 ],
