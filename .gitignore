@@ -44,3 +44,4 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 carebit_system_context.md
+firepit-log.txt

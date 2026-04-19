@@ -1,0 +1,11 @@
+{
+  "name": "fitbit-app-workspace",
+  "private": true,
+  "scripts": {
+    "app": "../flutter/bin/flutter run",
+    "server": "npm --prefix backend/functions run serve",
+    "server:preflight": "npm --prefix backend/functions run preflight:emulators",
+    "backend:test": "npm --prefix backend/functions test",
+    "backend:build": "npm --prefix backend/functions run build"
+  }
+}

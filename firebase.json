@@ -1,1 +1,72 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"fitbit-project-58078","appId":"1:175240204876:android:dcdb99cef409892e269ae9","fileOutput":"android/app/google-services.json"}},"ios":{"default":{"projectId":"fitbit-project-58078","appId":"1:175240204876:ios:d6ae80ff637bbe08269ae9","uploadDebugSymbols":false,"fileOutput":"ios/Runner/GoogleService-Info.plist"}},"dart":{"lib/firebase_options.dart":{"projectId":"fitbit-project-58078","configurations":{"android":"1:175240204876:android:dcdb99cef409892e269ae9","ios":"1:175240204876:ios:d6ae80ff637bbe08269ae9","web":"1:175240204876:web:277fc57b466fb7e0269ae9"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "fitbit-project-58078",
+          "appId": "1:175240204876:android:dcdb99cef409892e269ae9",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "fitbit-project-58078",
+          "appId": "1:175240204876:ios:d6ae80ff637bbe08269ae9",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "fitbit-project-58078",
+          "configurations": {
+            "android": "1:175240204876:android:dcdb99cef409892e269ae9",
+            "ios": "1:175240204876:ios:d6ae80ff637bbe08269ae9",
+            "web": "1:175240204876:web:277fc57b466fb7e0269ae9"
+          }
+        }
+      }
+    }
+  },
+  "emulators": {
+    "firestore": {
+      "host": "127.0.0.1",
+      "port": 8080
+    },
+    "functions": {
+      "host": "0.0.0.0",
+      "port": 5002
+    },
+    "ui": {
+      "enabled": true,
+      "port": 4002
+    },
+    "hub": {
+      "port": 4402
+    },
+    "logging": {
+      "port": 4502
+    }
+  },
+  "firestore": {
+    "indexes": "firestore.indexes.json",
+    "rules": "firestore.rules"
+  },
+  "functions": [
+    {
+      "source": "backend/functions",
+      "codebase": "default",
+      "disallowLegacyRuntimeConfig": true,
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ],
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" run build"
+      ]
+    }
+  ]
+}
