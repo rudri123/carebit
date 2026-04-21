@@ -11,20 +11,6 @@ class FitbitHeartRateReading {
 }
 
 FitbitHeartRateReading readFitbitHeartRate(Map<String, dynamic>? metrics) {
-  final heartRate = _asMap(metrics?['heartRate']);
-  final activities = _asList(heartRate?['activities-heart']);
-  final today = activities.isNotEmpty ? _asMap(activities.first) : null;
-  final value = _asMap(today?['value']);
-
-  final restingHeartRate = _asInt(value?['restingHeartRate']);
-  if (restingHeartRate != null) {
-    return FitbitHeartRateReading(
-      value: restingHeartRate,
-      isResting: true,
-      isHistorical: false,
-    );
-  }
-
   final intraday = _asMap(metrics?['heartRateIntraday']);
   final intradayPayload = _asMap(intraday?['activities-heart-intraday']);
   final dataset = _asList(intradayPayload?['dataset']);
@@ -38,6 +24,20 @@ FitbitHeartRateReading readFitbitHeartRate(Map<String, dynamic>? metrics) {
         isHistorical: false,
       );
     }
+  }
+
+  final heartRate = _asMap(metrics?['heartRate']);
+  final activities = _asList(heartRate?['activities-heart']);
+  final today = activities.isNotEmpty ? _asMap(activities.first) : null;
+  final value = _asMap(today?['value']);
+
+  final restingHeartRate = _asInt(value?['restingHeartRate']);
+  if (restingHeartRate != null) {
+    return FitbitHeartRateReading(
+      value: restingHeartRate,
+      isResting: true,
+      isHistorical: false,
+    );
   }
 
   final historicalRestingHeartRate = _readRecentRestingHeartRate(
