@@ -151,6 +151,122 @@ class _ContactSyncScreenState extends State<ContactSyncScreen> {
     );
   }
 
+  bool _isValidEmail(String email) {
+    final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+    return emailRegex.hasMatch(email);
+  }
+
+  Future<void> _showInviteByEmailDialog() async {
+    final emailController = TextEditingController();
+
+    final invitedEmail = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Invite by Email',
+            style: TextStyle(
+              fontFamily: 'Nunito',
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1E1B4B),
+            ),
+          ),
+          content: TextField(
+            controller: emailController,
+            keyboardType: TextInputType.emailAddress,
+            autofocus: true,
+            decoration: InputDecoration(
+              hintText: 'Enter email address',
+              filled: true,
+              fillColor: const Color(0xFFF8F7FE),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Color(0xFFE7E7EF)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Color(0xFFE7E7EF)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(
+                  color: Color(0xFF4338CA),
+                  width: 1.5,
+                ),
+              ),
+              prefixIcon: const Icon(
+                Icons.email_outlined,
+                color: Color(0xFF6B7280),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(
+                  color: Color(0xFF6B7280),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context, emailController.text.trim());
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4338CA),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text(
+                'Send Invite',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted || invitedEmail == null || invitedEmail.isEmpty) return;
+
+    if (!_isValidEmail(invitedEmail)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please enter a valid email address'),
+          backgroundColor: Colors.red[600],
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Invitation sent to $invitedEmail'),
+        backgroundColor: Colors.green[600],
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool hasExistingMembers = widget.existingFamilyMembers.isNotEmpty;
@@ -247,7 +363,7 @@ class _ContactSyncScreenState extends State<ContactSyncScreen> {
                 child: Text(
                   hasExistingMembers
                       ? 'Select or unselect family members to update your group'
-                      : 'Select family members to add to your group',
+                      : 'Select family members to add to your group or invite by email',
                   style: TextStyle(
                     fontFamily: 'DM Sans',
                     fontSize: 13,
@@ -319,7 +435,88 @@ class _ContactSyncScreenState extends State<ContactSyncScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 14),
+
+                      // ── Invite by Email Card ──
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: GestureDetector(
+                          onTap: _showInviteByEmailDialog,
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [
+                                  Color(0xFFEEF2FF),
+                                  Color(0xFFF5F3FF),
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(
+                                color: const Color(0xFF4338CA).withOpacity(0.12),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF4338CA).withOpacity(0.05),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 46,
+                                  height: 46,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF4338CA).withOpacity(0.10),
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: const Icon(
+                                    Icons.email_outlined,
+                                    color: Color(0xFF4338CA),
+                                    size: 24,
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                const Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Invite by Email',
+                                        style: TextStyle(
+                                          fontFamily: 'Nunito',
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 15,
+                                          color: Color(0xFF1E1B4B),
+                                        ),
+                                      ),
+                                      SizedBox(height: 3),
+                                      Text(
+                                        'Send an invite link to family members not in contacts',
+                                        style: TextStyle(
+                                          fontFamily: 'DM Sans',
+                                          fontSize: 12,
+                                          color: Color(0xFF6B7280),
+                                          height: 1.4,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(
+                                  Icons.arrow_forward_ios_rounded,
+                                  size: 16,
+                                  color: Color(0xFF4338CA),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
 
                       if (_selectedCount > 0)
                         Padding(

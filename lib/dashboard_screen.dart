@@ -11,6 +11,7 @@ import 'contact_sync_screen.dart';
 import 'device_connect_screen.dart';
 import 'fitbit_metrics.dart';
 import 'fitbit_service.dart';
+import 'alerts_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final List<Map<String, dynamic>> initialFamilyMembers;
@@ -90,7 +91,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       const HealthReportScreen(),
       const _PlaceholderTab('Community', '💜'),
-      const _PlaceholderTab('Alerts', '🔔'),
+      const AlertsScreen(),
       const ProfileScreen(),
     ];
 
