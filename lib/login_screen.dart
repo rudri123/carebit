@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'signup_screen.dart';
 import 'dashboard_screen.dart';
 
@@ -134,6 +135,82 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
       );
+    }
+  }
+
+  Future<void> _handleGoogleSignIn() async {
+    if (_isLoading) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final googleUser = await GoogleSignIn().signIn();
+
+      if (googleUser == null) {
+        return;
+      }
+
+      final googleAuth = await googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      await FirebaseAuth.instance.signInWithCredential(credential);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Signed in with Google successfully'),
+          backgroundColor: Colors.green[600],
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const DashboardScreen()),
+        (route) => false,
+      );
+    } on FirebaseAuthException catch (e) {
+      String message = 'Google sign-in failed';
+      if (e.code == 'account-exists-with-different-credential') {
+        message = 'This email is linked to a different sign-in method';
+      } else if (e.code == 'invalid-credential') {
+        message = 'Google sign-in credentials were invalid';
+      } else if (e.code == 'user-disabled') {
+        message = 'This account has been disabled';
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red[600],
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Google sign-in failed'),
+          backgroundColor: Colors.red[600],
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -409,26 +486,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
 
                     const SizedBox(height: 22),
-
-                    // Google button (UI only)
                     SizedBox(
                       width: double.infinity,
                       height: 56,
                       child: OutlinedButton(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: const Text(
-                                'Google sign-in can be added next',
-                              ),
-                              backgroundColor: Colors.blueGrey[700],
-                              behavior: SnackBarBehavior.floating,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          );
-                        },
+                        onPressed: _isLoading ? null : _handleGoogleSignIn,
                         style: OutlinedButton.styleFrom(
                           backgroundColor: Colors.white,
                           side: const BorderSide(color: Color(0xFFE7E7EF)),
@@ -436,14 +498,25 @@ class _LoginScreenState extends State<LoginScreen> {
                             borderRadius: BorderRadius.circular(18),
                           ),
                         ),
-                        child: const Text(
-                          'Continue with Google',
-                          style: TextStyle(
-                            color: Color(0xFF23235F),
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Color(0xFF23235F),
+                                  ),
+                                ),
+                              )
+                            : const Text(
+                                'Continue with Google',
+                                style: TextStyle(
+                                  color: Color(0xFF23235F),
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                       ),
                     ),
 

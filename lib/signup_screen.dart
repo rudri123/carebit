@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'dashboard_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
@@ -49,11 +50,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final credential =
-          await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-      );
+      final credential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(
+            email: _emailController.text.trim(),
+            password: _passwordController.text,
+          );
 
       if (_nameController.text.trim().isNotEmpty) {
         await credential.user?.updateDisplayName(_nameController.text.trim());
@@ -105,6 +106,83 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
   }
 
+  Future<void> _handleGoogleSignUp() async {
+    if (_isLoading) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final googleUser = await GoogleSignIn().signIn();
+
+      if (googleUser == null) {
+        return;
+      }
+
+      final googleAuth = await googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      await FirebaseAuth.instance.signInWithCredential(credential);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Signed up with Google successfully'),
+            backgroundColor: Colors.green[600],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const DashboardScreen()),
+          (route) => false,
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      String message = 'Google sign-up failed';
+      if (e.code == 'account-exists-with-different-credential') {
+        message = 'An account already exists with this email';
+      } else if (e.code == 'invalid-credential') {
+        message = 'Google sign-in credentials were invalid';
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: Colors.red[600],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Google sign-up failed'),
+            backgroundColor: Colors.red[600],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
   InputDecoration _inputDecoration({
     required String hintText,
     required IconData icon,
@@ -117,11 +195,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         fontSize: 16,
         fontWeight: FontWeight.w500,
       ),
-      prefixIcon: Icon(
-        icon,
-        color: const Color(0xFFD6D2C1),
-        size: 22,
-      ),
+      prefixIcon: Icon(icon, color: const Color(0xFFD6D2C1), size: 22),
       suffixIcon: suffixIcon,
       filled: true,
       fillColor: Colors.white,
@@ -347,10 +421,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(20),
                           gradient: const LinearGradient(
-                            colors: [
-                              Color(0xFF2446E8),
-                              Color(0xFF7A2CF3),
-                            ],
+                            colors: [Color(0xFF2446E8), Color(0xFF7A2CF3)],
                           ),
                           boxShadow: [
                             BoxShadow(
@@ -393,7 +464,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         ),
                       ),
                     ),
-                    
+
                     const SizedBox(height: 24),
 
                     // Login row
@@ -406,15 +477,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           ),
                         ),
                         const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 14),
-                        child: Text(
-                          'OR CONTINUE WITH',
+                          padding: EdgeInsets.symmetric(horizontal: 14),
+                          child: Text(
+                            'OR CONTINUE WITH',
                             style: TextStyle(
                               color: Color(0xFFC3C0D8),
                               fontSize: 12,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 1.2,
-                             ),
+                            ),
                           ),
                         ),
                         Expanded(
@@ -425,41 +496,30 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         ),
                       ],
                     ),
-                  const SizedBox(height: 22),
+                    const SizedBox(height: 22),
 
-                   // Google button (UI only for now)
+                    // Google button
                     SizedBox(
                       width: double.infinity,
-                        height: 56,
-                        child: OutlinedButton(
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: const Text('Google sign-up can be added next'),
-                                backgroundColor: Colors.blueGrey[700],
-                                behavior: SnackBarBehavior.floating,
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                            );
-                          },
-                          style: OutlinedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            side: const BorderSide(color: Color(0xFFE7E7EF)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                          ),
-                          child: const Text(
-                            'Continue with Google',
-                            style: TextStyle(
-                              color: Color(0xFF23235F),
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                            ),
+                      height: 56,
+                      child: OutlinedButton(
+                        onPressed: _isLoading ? null : _handleGoogleSignUp,
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          side: const BorderSide(color: Color(0xFFE7E7EF)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
                           ),
                         ),
+                        child: const Text(
+                          'Continue with Google',
+                          style: TextStyle(
+                            color: Color(0xFF23235F),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 24),
 
