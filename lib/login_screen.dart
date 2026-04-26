@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'signup_screen.dart';
 import 'dashboard_screen.dart';
+import 'user_profile_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -32,9 +33,12 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
+      final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text,
+      );
+      await UserProfileService.instance.syncCurrentUserProfile(
+        user: credential.user,
       );
 
       if (mounted) {
@@ -59,8 +63,7 @@ class _LoginScreenState extends State<LoginScreen> {
       String message = 'An error occurred';
       if (e.code == 'user-not-found') {
         message = 'No user found with this email';
-      } else if (e.code == 'wrong-password' ||
-          e.code == 'invalid-credential') {
+      } else if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
         message = 'Incorrect email or password';
       } else if (e.code == 'invalid-email') {
         message = 'Invalid email address';
@@ -156,7 +159,12 @@ class _LoginScreenState extends State<LoginScreen> {
         idToken: googleAuth.idToken,
       );
 
-      await FirebaseAuth.instance.signInWithCredential(credential);
+      final signedInUser = await FirebaseAuth.instance.signInWithCredential(
+        credential,
+      );
+      await UserProfileService.instance.syncCurrentUserProfile(
+        user: signedInUser.user,
+      );
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -226,11 +234,7 @@ class _LoginScreenState extends State<LoginScreen> {
         fontSize: 16,
         fontWeight: FontWeight.w500,
       ),
-      prefixIcon: Icon(
-        icon,
-        color: const Color(0xFFD6D2C1),
-        size: 22,
-      ),
+      prefixIcon: Icon(icon, color: const Color(0xFFD6D2C1), size: 22),
       suffixIcon: suffixIcon,
       filled: true,
       fillColor: Colors.white,
@@ -273,7 +277,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-    @override
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F3FA),
@@ -406,10 +410,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(20),
                           gradient: const LinearGradient(
-                            colors: [
-                              Color(0xFF2446E8),
-                              Color(0xFF7A2CF3),
-                            ],
+                            colors: [Color(0xFF2446E8), Color(0xFF7A2CF3)],
                           ),
                           boxShadow: [
                             BoxShadow(

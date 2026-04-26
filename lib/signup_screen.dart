@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'dashboard_screen.dart';
+import 'user_profile_service.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -59,6 +60,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
       if (_nameController.text.trim().isNotEmpty) {
         await credential.user?.updateDisplayName(_nameController.text.trim());
       }
+      await UserProfileService.instance.syncCurrentUserProfile(
+        user: credential.user,
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -124,7 +128,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
         idToken: googleAuth.idToken,
       );
 
-      await FirebaseAuth.instance.signInWithCredential(credential);
+      final signedInUser = await FirebaseAuth.instance.signInWithCredential(
+        credential,
+      );
+      await UserProfileService.instance.syncCurrentUserProfile(
+        user: signedInUser.user,
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

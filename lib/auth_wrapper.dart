@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'home_screen.dart';
 import 'dashboard_screen.dart';
 import 'onboarding_screen.dart';
+import 'user_profile_service.dart';
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
@@ -23,15 +24,26 @@ class AuthWrapper extends StatelessWidget {
         // Show loading while checking auth
         if (authSnapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(),
-            ),
+            body: Center(child: CircularProgressIndicator()),
           );
         }
 
         // If logged in → go straight to dashboard
         if (authSnapshot.hasData && authSnapshot.data != null) {
-          return const DashboardScreen();
+          return FutureBuilder<void>(
+            future: UserProfileService.instance.syncCurrentUserProfile(
+              user: authSnapshot.data,
+            ),
+            builder: (context, syncSnapshot) {
+              if (syncSnapshot.connectionState == ConnectionState.waiting) {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+
+              return const DashboardScreen();
+            },
+          );
         }
 
         // If not logged in → check onboarding status
@@ -40,9 +52,7 @@ class AuthWrapper extends StatelessWidget {
           builder: (context, onboardingSnapshot) {
             if (onboardingSnapshot.connectionState == ConnectionState.waiting) {
               return const Scaffold(
-                body: Center(
-                  child: CircularProgressIndicator(),
-                ),
+                body: Center(child: CircularProgressIndicator()),
               );
             }
 

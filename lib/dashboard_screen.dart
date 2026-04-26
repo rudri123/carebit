@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -8,6 +9,7 @@ import 'profile_screen.dart';
 import 'health_report_screen.dart';
 import 'community_intro_screen.dart';
 import 'contact_sync_screen.dart';
+import 'community_service.dart';
 import 'device_connect_screen.dart';
 import 'fitbit_metrics.dart';
 import 'fitbit_service.dart';
@@ -240,11 +242,7 @@ class _HomeTab extends StatefulWidget {
   final List<Map<String, dynamic>> familyMembers;
   final ValueChanged<List<Map<String, dynamic>>> onMembersUpdated;
 
-  const _HomeTab({
-    super.key,
-    required this.familyMembers,
-    required this.onMembersUpdated,
-  });
+  const _HomeTab({required this.familyMembers, required this.onMembersUpdated});
 
   @override
   State<_HomeTab> createState() => _HomeTabState();
@@ -252,28 +250,46 @@ class _HomeTab extends StatefulWidget {
 
 class _HomeTabState extends State<_HomeTab> {
   late List<Map<String, dynamic>> _familyMembers;
+  List<FirebaseCommunityMember> _communityMembers = const [];
+  bool _communityLoading = true;
+  String? _communityError;
+
+  // ── Community member health metrics ─────────────────────────────────────────
+  Map<String, Map<String, dynamic>?> _communityMemberMetrics =
+      {}; // uid -> metrics
+  Map<String, bool> _communityMemberLoading = {}; // uid -> isLoading
+  Map<String, String?> _communityMemberError = {}; // uid -> error message
+  Map<String, DateTime> _communityMemberUpdated = {}; // uid -> lastUpdated
+  String? _expandedCommunityMemberId; // track which member is expanded
 
   // ── Fitbit connection status ─────────────────────────────────────────────
   bool _fitbitChecking = true;
   bool _fitbitConnected = false;
   Map<String, dynamic>? _liveMetrics; // mini vitals when connected
   Timer? _fitbitStatusTimer;
+  Timer? _communityRefreshTimer;
 
   @override
   void initState() {
     super.initState();
     _familyMembers = List<Map<String, dynamic>>.from(widget.familyMembers);
     _checkFitbitStatus();
+    _refreshCommunityMembers();
     // Re-check every 10 minutes (avoiding rate limits)
     _fitbitStatusTimer = Timer.periodic(
       const Duration(minutes: 10),
       (_) => _checkFitbitStatus(),
+    );
+    _communityRefreshTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _refreshCommunityMembers(),
     );
   }
 
   @override
   void dispose() {
     _fitbitStatusTimer?.cancel();
+    _communityRefreshTimer?.cancel();
     super.dispose();
   }
 
@@ -281,18 +297,20 @@ class _HomeTabState extends State<_HomeTab> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        if (mounted)
+        if (mounted) {
           setState(() {
             _fitbitChecking = false;
           });
+        }
         return;
       }
       final idToken = await user.getIdToken();
       if (idToken == null) {
-        if (mounted)
+        if (mounted) {
           setState(() {
             _fitbitChecking = false;
           });
+        }
         return;
       }
       final metrics = await FitbitService.instance.fetchMyMetrics(
@@ -316,10 +334,37 @@ class _HomeTabState extends State<_HomeTab> {
         });
       }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _fitbitChecking = false;
         });
+      }
+    }
+  }
+
+  Future<void> _refreshCommunityMembers() async {
+    try {
+      final members = await CommunityService.instance.loadCommunityMembers();
+      if (!mounted) return;
+      setState(() {
+        _communityMembers = members;
+        _communityLoading = false;
+        _communityError = null;
+      });
+    } on CommunityServiceException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _communityMembers = const [];
+        _communityLoading = false;
+        _communityError = error.message;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _communityMembers = const [];
+        _communityLoading = false;
+        _communityError = 'Could not load community members: $error';
+      });
     }
   }
 
@@ -372,6 +417,155 @@ class _HomeTabState extends State<_HomeTab> {
     if (hour < 12) return 'Good morning';
     if (hour < 17) return 'Good afternoon';
     return 'Good evening';
+  }
+
+  // ── Community member health metrics helpers ──────────────────────────────────
+  Future<void> _loadCommunityMemberMetrics(
+    String memberUid,
+    FirebaseCommunityMember member,
+  ) async {
+    if (!mounted) return;
+    setState(() {
+      _communityMemberLoading[memberUid] = true;
+      _communityMemberError[memberUid] = null;
+    });
+
+    try {
+      final metrics = await CommunityService.instance
+          .fetchCommunityMemberMetrics(memberUid: memberUid);
+      if (!mounted) return;
+      setState(() {
+        _communityMemberMetrics[memberUid] = metrics;
+        _communityMemberLoading[memberUid] = false;
+        _communityMemberUpdated[memberUid] = DateTime.now();
+      });
+    } on CommunityServiceException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _communityMemberError[memberUid] = error.message;
+        _communityMemberLoading[memberUid] = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _communityMemberError[memberUid] = 'Unexpected error: $error';
+        _communityMemberLoading[memberUid] = false;
+      });
+    }
+  }
+
+  FitbitHeartRateReading _getHeartRateReading(String memberUid) {
+    return readFitbitHeartRate(_communityMemberMetrics[memberUid]);
+  }
+
+  int? _getHeartRate(String memberUid) {
+    return _getHeartRateReading(memberUid).value;
+  }
+
+  int? _getSpo2(String memberUid) {
+    final metrics = _communityMemberMetrics[memberUid];
+    final spo2 = metrics?['oxygenSaturation'];
+    final value = (spo2 as Map<String, dynamic>?)?['value'];
+    return value is num ? value.round() : null;
+  }
+
+  int? _getSleepMinutes(String memberUid) {
+    final metrics = _communityMemberMetrics[memberUid];
+    final sleep = metrics?['sleep'];
+    final summary =
+        (sleep as Map<String, dynamic>?)?['summary'] as Map<String, dynamic>?;
+    final value = summary?['totalMinutesAsleep'];
+    return value is num ? value.toInt() : null;
+  }
+
+  int? _getSteps(String memberUid) {
+    final metrics = _communityMemberMetrics[memberUid];
+    final activities = metrics?['activities'];
+    final summary =
+        (activities as Map<String, dynamic>?)?['summary']
+            as Map<String, dynamic>?;
+    final value = summary?['steps'];
+    return value is num ? value.toInt() : null;
+  }
+
+  int? _getActiveMinutes(String memberUid) {
+    final metrics = _communityMemberMetrics[memberUid];
+    final activities = metrics?['activities'];
+    final summary =
+        (activities as Map<String, dynamic>?)?['summary']
+            as Map<String, dynamic>?;
+    final very = summary?['veryActiveMinutes'] as num? ?? 0;
+    final fairly = summary?['fairlyActiveMinutes'] as num? ?? 0;
+    final lightly = summary?['lightlyActiveMinutes'] as num? ?? 0;
+    return (very + fairly + lightly).toInt();
+  }
+
+  int? _getBmr(String memberUid) {
+    final metrics = _communityMemberMetrics[memberUid];
+    final heartRate = metrics?['heartRate'] as Map<String, dynamic>?;
+    final activities = heartRate?['activities-heart'] as List<dynamic>?;
+    final today = activities?.isNotEmpty == true
+        ? activities!.first as Map<String, dynamic>?
+        : null;
+    final zones =
+        (today?['value'] as Map<String, dynamic>?)?['heartRateZones']
+            as List<dynamic>?;
+    final total = zones?.fold<double>(
+      0,
+      (sum, zone) =>
+          sum +
+          (((zone as Map<String, dynamic>?)?['caloriesOut'] as num?) ?? 0),
+    );
+    if (total == null || total <= 0) return null;
+    return total.toInt();
+  }
+
+  int _getHealthScore(String memberUid) {
+    var score = 50;
+    final hr = _getHeartRate(memberUid);
+    final spo2 = _getSpo2(memberUid);
+    final sleep = _getSleepMinutes(memberUid);
+
+    if (hr != null) {
+      if (hr >= 60 && hr <= 100) {
+        score += 20;
+      } else if (hr < 60 || hr <= 110) {
+        score += 10;
+      }
+    }
+    if (spo2 != null) {
+      if (spo2 >= 95) {
+        score += 20;
+      } else if (spo2 >= 90) {
+        score += 10;
+      }
+    }
+    if (sleep != null) {
+      if (sleep >= 420) {
+        score += 10;
+      } else if (sleep >= 300) {
+        score += 5;
+      }
+    }
+
+    return score.clamp(0, 100);
+  }
+
+  String _getSleepLabel(String memberUid) {
+    final minutes = _getSleepMinutes(memberUid);
+    if (minutes == null) return '--';
+    final hours = minutes ~/ 60;
+    final remainder = minutes % 60;
+    return '${hours}h ${remainder}m';
+  }
+
+  String _getUpdatedLabel(String memberUid) {
+    final updated = _communityMemberUpdated[memberUid];
+    if (updated == null) return '';
+    final hour = updated.hour % 12 == 0 ? 12 : updated.hour % 12;
+    final minute = updated.minute.toString().padLeft(2, '0');
+    final period = updated.hour >= 12 ? 'PM' : 'AM';
+    return '$hour:$minute $period';
   }
 
   Future<void> _editMemberName(int index) async {
@@ -460,6 +654,7 @@ class _HomeTabState extends State<_HomeTab> {
       });
 
       widget.onMembersUpdated(List<Map<String, dynamic>>.from(_familyMembers));
+      if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -480,6 +675,8 @@ class _HomeTabState extends State<_HomeTab> {
     String greeting,
     User? user,
   ) {
+    final totalMembers = _familyMembers.length + _communityMembers.length;
+    final activeMembers = _communityMembers.length;
     final now = DateTime.now();
     const months = [
       'Jan',
@@ -589,9 +786,9 @@ class _HomeTabState extends State<_HomeTab> {
             ),
             child: Row(
               children: [
-                _statItem(_familyMembers.length.toString(), 'MEMBERS'),
+                _statItem(totalMembers.toString(), 'MEMBERS'),
                 _statDivider(),
-                _statItem(_familyMembers.length.toString(), 'ACTIVE'),
+                _statItem(activeMembers.toString(), 'LIVE'),
                 _statDivider(),
                 _statItem('0', 'ALERTS'),
               ],
@@ -655,11 +852,61 @@ class _HomeTabState extends State<_HomeTab> {
             ),
           ),
           const SizedBox(height: 14),
+          _buildRemoteMembersSection(context),
+          const SizedBox(height: 18),
+          _buildLocalPrototypeSection(context),
+        ],
+      ),
+    );
+  }
 
-          if (_familyMembers.isEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
+  Widget _buildRemoteMembersSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Community Group Members',
+          style: TextStyle(
+            fontFamily: 'Nunito',
+            fontWeight: FontWeight.w900,
+            fontSize: 15,
+            color: Color(0xFF1E1B4B),
+          ),
+        ),
+        const SizedBox(height: 10),
+        if (_communityLoading)
+          _messageCard(
+            emoji: '⏳',
+            title: 'Loading live community members',
+            subtitle: 'Checking your Firebase-backed community groups.',
+          ),
+        if (!_communityLoading && _communityError != null)
+          _messageCard(
+            emoji: '⚠️',
+            title: 'Could not load live community members',
+            subtitle: _communityError!,
+            trailing: TextButton(
+              onPressed: _refreshCommunityMembers,
+              child: const Text('Retry'),
+            ),
+          ),
+        if (!_communityLoading &&
+            _communityError == null &&
+            _communityMembers.isEmpty)
+          _messageCard(
+            emoji: '🌐',
+            title: 'No accepted community members yet',
+            subtitle:
+                'Accepted email invites will appear here with live Fitbit access.',
+          ),
+        ..._communityMembers.map((member) {
+          final isLoading = _communityMemberLoading[member.uid] ?? false;
+          final hasError = _communityMemberError[member.uid] != null;
+          final metrics = _communityMemberMetrics[member.uid];
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Container(
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(18),
@@ -671,158 +918,429 @@ class _HomeTabState extends State<_HomeTab> {
                   ),
                 ],
               ),
-              child: Column(
-                children: [
-                  Container(
-                    width: 64,
-                    height: 64,
+              child: Theme(
+                data: Theme.of(
+                  context,
+                ).copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  tilePadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 6,
+                  ),
+                  childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                  onExpansionChanged: (expanded) {
+                    if (expanded) {
+                      setState(() {
+                        _expandedCommunityMemberId = member.uid;
+                      });
+                      _loadCommunityMemberMetrics(member.uid, member);
+                    } else {
+                      setState(() {
+                        _expandedCommunityMemberId = null;
+                      });
+                    }
+                  },
+                  leading: Container(
+                    width: 48,
+                    height: 48,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF5F3FF),
-                      borderRadius: BorderRadius.circular(20),
+                      color: const Color(0xFFEEF2FF),
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                    child: const Center(
-                      child: Text('👨‍👩‍👧', style: TextStyle(fontSize: 28)),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  const Text(
-                    'No family members added yet',
-                    style: TextStyle(
-                      fontFamily: 'Nunito',
-                      fontWeight: FontWeight.w800,
-                      fontSize: 16,
-                      color: Color(0xFF1E1B4B),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Tap the Add button below to connect and add your loved ones.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: 'DM Sans',
-                      fontSize: 13,
-                      color: Color(0xFF6B7280),
-                      height: 1.5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-          ..._familyMembers.asMap().entries.map((entry) {
-            final index = entry.key;
-            final member = entry.value;
-            final memberColor = Color(member['color'] as int);
-
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF4338CA).withOpacity(0.06),
-                      blurRadius: 16,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Theme(
-                  data: Theme.of(
-                    context,
-                  ).copyWith(dividerColor: Colors.transparent),
-                  child: ExpansionTile(
-                    tilePadding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 6,
-                    ),
-                    childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                    leading: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: memberColor.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: memberColor.withOpacity(0.35),
-                          width: 1.5,
-                        ),
-                      ),
-                      child: Center(
-                        child: Text(
-                          member['emoji'] as String,
-                          style: const TextStyle(fontSize: 22),
+                    child: Center(
+                      child: Text(
+                        member.displayName.isNotEmpty
+                            ? member.displayName[0].toUpperCase()
+                            : '?',
+                        style: const TextStyle(
+                          fontFamily: 'Nunito',
+                          fontWeight: FontWeight.w900,
+                          fontSize: 20,
+                          color: Color(0xFF4338CA),
                         ),
                       ),
                     ),
-                    title: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            member['name'] as String,
-                            style: const TextStyle(
-                              fontFamily: 'Nunito',
-                              fontWeight: FontWeight.w800,
-                              fontSize: 15,
-                              color: Color(0xFF1E1B4B),
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        GestureDetector(
-                          onTap: () => _editMemberName(index),
-                          child: Container(
-                            width: 28,
-                            height: 28,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF5F3FF),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(
-                              Icons.edit_rounded,
-                              size: 16,
-                              color: Color(0xFF4338CA),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    subtitle: const Text(
-                      'Tap to view health metrics',
-                      style: TextStyle(
-                        fontFamily: 'DM Sans',
-                        fontSize: 11.5,
-                        color: Color(0xFF6B7280),
-                      ),
-                    ),
+                  ),
+                  title: Row(
                     children: [
-                      GridView.count(
-                        crossAxisCount: 2,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        crossAxisSpacing: 10,
-                        mainAxisSpacing: 10,
-                        childAspectRatio: 2.4,
-                        children: [
-                          _metricCard('Battery', member['battery'] as String),
-                          _metricCard(
-                            'Resting HR',
-                            member['restingHr'] as String,
+                      Expanded(
+                        child: Text(
+                          member.displayName,
+                          style: const TextStyle(
+                            fontFamily: 'Nunito',
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                            color: Color(0xFF1E1B4B),
                           ),
-                          _metricCard('SpO2', member['spo2'] as String),
-                          _metricCard('BMR', member['bmr'] as String),
-                          _metricCard('Steps Today', member['steps'] as String),
-                          _metricCard('Sleep', member['sleep'] as String),
-                        ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDCFCE7),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: const Text(
+                          'Live group member',
+                          style: TextStyle(
+                            fontFamily: 'DM Sans',
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF166534),
+                          ),
+                        ),
                       ),
                     ],
                   ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 2),
+                      Text(
+                        member.groupNames.join(' · '),
+                        style: const TextStyle(
+                          fontFamily: 'DM Sans',
+                          fontSize: 12,
+                          color: Color(0xFF4338CA),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        member.email.isEmpty
+                            ? 'Tap to view live Fitbit metrics'
+                            : '${member.email} · Tap to view live Fitbit metrics',
+                        style: const TextStyle(
+                          fontFamily: 'DM Sans',
+                          fontSize: 11.5,
+                          color: Color(0xFF6B7280),
+                          height: 1.45,
+                        ),
+                      ),
+                    ],
+                  ),
+                  children: [
+                    if (isLoading)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: CircularProgressIndicator(
+                          color: Color(0xFF4338CA),
+                        ),
+                      ),
+                    if (!isLoading && hasError)
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF1F2),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: const Color(0xFFFCA5A5).withOpacity(0.6),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _communityMemberError[member.uid]!,
+                                style: const TextStyle(
+                                  fontFamily: 'DM Sans',
+                                  fontSize: 12.5,
+                                  color: Color(0xFF991B1B),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            GestureDetector(
+                              onTap: () => _loadCommunityMemberMetrics(
+                                member.uid,
+                                member,
+                              ),
+                              child: const Icon(
+                                Icons.refresh_rounded,
+                                color: Color(0xFF991B1B),
+                                size: 18,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (!isLoading && !hasError && metrics == null)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF5F4FE),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: const Column(
+                          children: [
+                            Text('⌚', style: TextStyle(fontSize: 34)),
+                            SizedBox(height: 12),
+                            Text(
+                              'No Fitbit connected yet',
+                              style: TextStyle(
+                                fontFamily: 'Nunito',
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFF1E1B4B),
+                              ),
+                            ),
+                            SizedBox(height: 6),
+                            Text(
+                              'This member has not shared Fitbit data yet.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontFamily: 'DM Sans',
+                                fontSize: 12.5,
+                                color: Color(0xFF6B7280),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (!isLoading && !hasError && metrics != null) ...[
+                      if (_communityMemberUpdated[member.uid] != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            'Updated ${_getUpdatedLabel(member.uid)}',
+                            style: const TextStyle(
+                              fontFamily: 'DM Sans',
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF10B981),
+                            ),
+                          ),
+                        ),
+                      _buildCommunityMemberVitalsGrid(member.uid),
+                      const SizedBox(height: 14),
+                      _buildCommunityMemberSummaryCards(member.uid),
+                    ],
+                  ],
                 ),
               ),
-            );
-          }).toList(),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildLocalPrototypeSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Family Members',
+          style: TextStyle(
+            fontFamily: 'Nunito',
+            fontWeight: FontWeight.w900,
+            fontSize: 15,
+            color: Color(0xFF1E1B4B),
+          ),
+        ),
+        const SizedBox(height: 10),
+        if (_familyMembers.isEmpty)
+          _messageCard(
+            emoji: '👨‍👩‍👧',
+            title: 'No local family members added yet',
+            subtitle:
+                'Tap the Add button below to keep using the local family-member prototype.',
+          ),
+        ..._familyMembers.asMap().entries.map((entry) {
+          final index = entry.key;
+          final member = entry.value;
+          final memberColor = Color(member['color'] as int);
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF4338CA).withOpacity(0.06),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Theme(
+                data: Theme.of(
+                  context,
+                ).copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  tilePadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 6,
+                  ),
+                  childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                  leading: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: memberColor.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: memberColor.withOpacity(0.35),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        member['emoji'] as String,
+                        style: const TextStyle(fontSize: 22),
+                      ),
+                    ),
+                  ),
+                  title: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          member['name'] as String,
+                          style: const TextStyle(
+                            fontFamily: 'Nunito',
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                            color: Color(0xFF1E1B4B),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF7ED),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: const Text(
+                          'Local prototype',
+                          style: TextStyle(
+                            fontFamily: 'DM Sans',
+                            fontWeight: FontWeight.w700,
+                            fontSize: 10,
+                            color: Color(0xFFB45309),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      GestureDetector(
+                        onTap: () => _editMemberName(index),
+                        child: Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF5F3FF),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.edit_rounded,
+                            size: 16,
+                            color: Color(0xFF4338CA),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  subtitle: const Text(
+                    'Prototype member metrics stored on this device',
+                    style: TextStyle(
+                      fontFamily: 'DM Sans',
+                      fontSize: 11.5,
+                      color: Color(0xFF6B7280),
+                    ),
+                  ),
+                  children: [
+                    GridView.count(
+                      crossAxisCount: 2,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                      childAspectRatio: 2.4,
+                      children: [
+                        _metricCard('Battery', member['battery'] as String),
+                        _metricCard(
+                          'Resting HR',
+                          member['restingHr'] as String,
+                        ),
+                        _metricCard('SpO2', member['spo2'] as String),
+                        _metricCard('BMR', member['bmr'] as String),
+                        _metricCard('Steps Today', member['steps'] as String),
+                        _metricCard('Sleep', member['sleep'] as String),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _messageCard({
+    required String emoji,
+    required String title,
+    required String subtitle,
+    Widget? trailing,
+  }) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF4338CA).withOpacity(0.06),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 26)),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontFamily: 'Nunito',
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                    color: Color(0xFF1E1B4B),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontFamily: 'DM Sans',
+                    fontSize: 12.5,
+                    color: Color(0xFF6B7280),
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (trailing != null) trailing,
         ],
       ),
     );
@@ -857,6 +1375,149 @@ class _HomeTabState extends State<_HomeTab> {
               fontWeight: FontWeight.w900,
               fontSize: 13,
               color: Color(0xFF1E1B4B),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Community member vitals and summary widgets ───────────────────────────────
+  Widget _buildCommunityMemberVitalsGrid(String memberUid) {
+    final heartRateReading = _getHeartRateReading(memberUid);
+    final heartRate = heartRateReading.value;
+    final spo2 = _getSpo2(memberUid);
+    final steps = _getSteps(memberUid);
+    final activeMinutes = _getActiveMinutes(memberUid);
+
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
+      childAspectRatio: 1.08,
+      children: [
+        _communityVitalCard(
+          emoji: '🫀',
+          label: heartRateReading.isHistorical
+              ? 'Recent Resting HR'
+              : heartRateReading.isResting
+              ? 'Resting Heart Rate'
+              : 'Latest Heart Rate',
+          value: heartRate != null ? '$heartRate bpm' : '--',
+          background: const Color(0xFFFFF1F2),
+        ),
+        _communityVitalCard(
+          emoji: '🫁',
+          label: 'SpO₂',
+          value: spo2 != null ? '$spo2%' : '--',
+          background: const Color(0xFFECFEFF),
+        ),
+        _communityVitalCard(
+          emoji: '👣',
+          label: 'Steps Today',
+          value: steps != null ? '$steps' : '--',
+          background: const Color(0xFFF5F3FF),
+        ),
+        _communityVitalCard(
+          emoji: '⚡',
+          label: 'Active Minutes',
+          value: activeMinutes != null ? '$activeMinutes min' : '--',
+          background: const Color(0xFFFFFBEB),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCommunityMemberSummaryCards(String memberUid) {
+    return Column(
+      children: [
+        _communitySummaryCard('Sleep', _getSleepLabel(memberUid)),
+        const SizedBox(height: 12),
+        _communitySummaryCard(
+          'Estimated BMR',
+          _getBmr(memberUid) != null ? '${_getBmr(memberUid)} kcal' : '--',
+        ),
+      ],
+    );
+  }
+
+  Widget _communityVitalCard({
+    required String emoji,
+    required String label,
+    required String value,
+    required Color background,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 24)),
+          const Spacer(),
+          Text(
+            label,
+            style: const TextStyle(
+              fontFamily: 'DM Sans',
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF6B7280),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: const TextStyle(
+              fontFamily: 'Nunito',
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF1E1B4B),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _communitySummaryCard(String label, String value) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF4338CA).withOpacity(0.05),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontFamily: 'Nunito',
+              fontWeight: FontWeight.w800,
+              fontSize: 15,
+              color: Color(0xFF1E1B4B),
+            ),
+          ),
+          const Spacer(),
+          Text(
+            value,
+            style: const TextStyle(
+              fontFamily: 'DM Sans',
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+              color: Color(0xFF4338CA),
             ),
           ),
         ],
@@ -1220,6 +1881,49 @@ class _HomeTabState extends State<_HomeTab> {
         ],
       ),
     );
+  }
+}
+
+// ── Health Score Ring Painter ──
+class _HealthScoreRingPainter extends CustomPainter {
+  const _HealthScoreRingPainter({
+    required this.score,
+    required this.trackColor,
+    required this.progressColor,
+  });
+
+  final int score;
+  final Color trackColor;
+  final Color progressColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final strokeWidth = 7.0;
+    final center = size.center(Offset.zero);
+    final radius = (size.width - strokeWidth) / 2;
+    final rect = Rect.fromCircle(center: center, radius: radius);
+
+    final trackPaint = Paint()
+      ..color = trackColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    final progressPaint = Paint()
+      ..color = progressColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawArc(rect, -pi / 2, 2 * pi, false, trackPaint);
+    canvas.drawArc(rect, -pi / 2, 2 * pi * (score / 100), false, progressPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _HealthScoreRingPainter oldDelegate) {
+    return oldDelegate.score != score ||
+        oldDelegate.trackColor != trackColor ||
+        oldDelegate.progressColor != progressColor;
   }
 }
 

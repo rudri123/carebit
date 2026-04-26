@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'community_service.dart';
 import 'dashboard_screen.dart';
 
 // ── Dummy contact model ──
@@ -9,24 +10,27 @@ class _Contact {
   final String role;
   final String phone;
   final String emoji;
-  bool selected;
+  bool selected = false;
 
   _Contact({
     required this.name,
     required this.role,
     required this.phone,
     required this.emoji,
-    this.selected = false,
   });
+}
+
+class _InviteFormResult {
+  const _InviteFormResult({required this.email, this.groupId});
+
+  final String email;
+  final String? groupId;
 }
 
 class ContactSyncScreen extends StatefulWidget {
   final List<Map<String, dynamic>> existingFamilyMembers;
 
-  const ContactSyncScreen({
-    super.key,
-    this.existingFamilyMembers = const [],
-  });
+  const ContactSyncScreen({super.key, this.existingFamilyMembers = const []});
 
   @override
   State<ContactSyncScreen> createState() => _ContactSyncScreenState();
@@ -35,6 +39,9 @@ class ContactSyncScreen extends StatefulWidget {
 class _ContactSyncScreenState extends State<ContactSyncScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  List<CommunityGroupOption> _communityGroups = const [];
+  bool _loadingCommunityGroups = true;
+  bool _sendingInvite = false;
 
   final List<_Contact> _contacts = [
     _Contact(
@@ -91,12 +98,31 @@ class _ContactSyncScreenState extends State<ContactSyncScreen> {
         contact.selected = true;
       }
     }
+
+    _loadCommunityGroups();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadCommunityGroups() async {
+    try {
+      final groups = await CommunityService.instance.fetchCurrentUserGroups();
+      if (!mounted) return;
+      setState(() {
+        _communityGroups = groups;
+        _loadingCommunityGroups = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _communityGroups = const [];
+        _loadingCommunityGroups = false;
+      });
+    }
   }
 
   List<Map<String, dynamic>> _buildSelectedFamilyMembers() {
@@ -143,9 +169,7 @@ class _ContactSyncScreenState extends State<ContactSyncScreen> {
 
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(
-        builder: (_) => DashboardScreen(
-          initialFamilyMembers: selectedMembers,
-        ),
+        builder: (_) => DashboardScreen(initialFamilyMembers: selectedMembers),
       ),
       (route) => false,
     );
@@ -157,91 +181,201 @@ class _ContactSyncScreenState extends State<ContactSyncScreen> {
   }
 
   Future<void> _showInviteByEmailDialog() async {
-    final emailController = TextEditingController();
+    if (_sendingInvite) return;
+    if (_loadingCommunityGroups) {
+      await _loadCommunityGroups();
+    }
+    if (!mounted) return;
 
-    final invitedEmail = await showDialog<String>(
+    final emailController = TextEditingController();
+    String? selectedGroupId = _communityGroups.length == 1
+        ? _communityGroups.first.id
+        : null;
+
+    final result = await showDialog<_InviteFormResult>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: const Text(
-            'Invite by Email',
-            style: TextStyle(
-              fontFamily: 'Nunito',
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF1E1B4B),
-            ),
-          ),
-          content: TextField(
-            controller: emailController,
-            keyboardType: TextInputType.emailAddress,
-            autofocus: true,
-            decoration: InputDecoration(
-              hintText: 'Enter email address',
-              filled: true,
-              fillColor: const Color(0xFFF8F7FE),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 14,
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final needsGroupSelection = _communityGroups.length > 1;
+
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
               ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: Color(0xFFE7E7EF)),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: Color(0xFFE7E7EF)),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(
-                  color: Color(0xFF4338CA),
-                  width: 1.5,
-                ),
-              ),
-              prefixIcon: const Icon(
-                Icons.email_outlined,
-                color: Color(0xFF6B7280),
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text(
-                'Cancel',
+              title: const Text(
+                'Invite by Email',
                 style: TextStyle(
-                  color: Color(0xFF6B7280),
-                  fontWeight: FontWeight.w700,
+                  fontFamily: 'Nunito',
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF1E1B4B),
                 ),
               ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context, emailController.text.trim());
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4338CA),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        hintText: 'Enter email address',
+                        filled: true,
+                        fillColor: const Color(0xFFF8F7FE),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE7E7EF),
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE7E7EF),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF4338CA),
+                            width: 1.5,
+                          ),
+                        ),
+                        prefixIcon: const Icon(
+                          Icons.email_outlined,
+                          color: Color(0xFF6B7280),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    if (_loadingCommunityGroups)
+                      const Row(
+                        children: [
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Loading your community groups…',
+                              style: TextStyle(
+                                fontFamily: 'DM Sans',
+                                fontSize: 12,
+                                color: Color(0xFF6B7280),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    if (!_loadingCommunityGroups && _communityGroups.isEmpty)
+                      const Text(
+                        'Your first community group will be created automatically when this invite is sent.',
+                        style: TextStyle(
+                          fontFamily: 'DM Sans',
+                          fontSize: 12,
+                          height: 1.5,
+                          color: Color(0xFF6B7280),
+                        ),
+                      ),
+                    if (!_loadingCommunityGroups &&
+                        _communityGroups.length == 1)
+                      Text(
+                        'Invite will be sent to ${_communityGroups.first.name}.',
+                        style: const TextStyle(
+                          fontFamily: 'DM Sans',
+                          fontSize: 12,
+                          height: 1.5,
+                          color: Color(0xFF6B7280),
+                        ),
+                      ),
+                    if (!_loadingCommunityGroups && needsGroupSelection)
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedGroupId,
+                        decoration: InputDecoration(
+                          labelText: 'Choose a community group',
+                          filled: true,
+                          fillColor: const Color(0xFFF8F7FE),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE7E7EF),
+                            ),
+                          ),
+                        ),
+                        items: _communityGroups
+                            .map(
+                              (group) => DropdownMenuItem<String>(
+                                value: group.id,
+                                child: Text(group.name),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          setDialogState(() {
+                            selectedGroupId = value;
+                          });
+                        },
+                      ),
+                  ],
                 ),
               ),
-              child: const Text(
-                'Send Invite',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-          ],
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: Color(0xFF6B7280),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed:
+                      _loadingCommunityGroups ||
+                          (needsGroupSelection && selectedGroupId == null)
+                      ? null
+                      : () {
+                          Navigator.pop(
+                            context,
+                            _InviteFormResult(
+                              email: emailController.text.trim(),
+                              groupId: selectedGroupId,
+                            ),
+                          );
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4338CA),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Send Invite',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
 
-    if (!mounted || invitedEmail == null || invitedEmail.isEmpty) return;
+    emailController.dispose();
 
-    if (!_isValidEmail(invitedEmail)) {
+    if (!mounted || result == null || result.email.isEmpty) return;
+
+    if (!_isValidEmail(result.email)) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Please enter a valid email address'),
@@ -255,16 +389,46 @@ class _ContactSyncScreenState extends State<ContactSyncScreen> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Invitation sent to $invitedEmail'),
-        backgroundColor: Colors.green[600],
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
+    setState(() {
+      _sendingInvite = true;
+    });
+
+    try {
+      await CommunityService.instance.createInvite(
+        email: result.email,
+        groupId: result.groupId,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Invitation sent to ${result.email}'),
+          backgroundColor: Colors.green[600],
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
-      ),
-    );
+      );
+    } on CommunityServiceException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.message),
+          backgroundColor: Colors.red[600],
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _sendingInvite = false;
+        });
+      }
+    }
   }
 
   @override
@@ -279,11 +443,7 @@ class _ContactSyncScreenState extends State<ContactSyncScreen> {
           gradient: LinearGradient(
             begin: Alignment(-0.5, -1),
             end: Alignment(0.5, 1),
-            colors: [
-              Color(0xFF0F172A),
-              Color(0xFF1E1B4B),
-              Color(0xFF312E81),
-            ],
+            colors: [Color(0xFF0F172A), Color(0xFF1E1B4B), Color(0xFF312E81)],
           ),
         ),
         child: SafeArea(
@@ -394,12 +554,12 @@ class _ContactSyncScreenState extends State<ContactSyncScreen> {
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: const Color(0xFFE5E7EB),
-                            ),
+                            border: Border.all(color: const Color(0xFFE5E7EB)),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF4338CA).withOpacity(0.04),
+                                color: const Color(
+                                  0xFF4338CA,
+                                ).withOpacity(0.04),
                                 blurRadius: 12,
                                 offset: const Offset(0, 2),
                               ),
@@ -447,18 +607,19 @@ class _ContactSyncScreenState extends State<ContactSyncScreen> {
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
                               gradient: const LinearGradient(
-                                colors: [
-                                  Color(0xFFEEF2FF),
-                                  Color(0xFFF5F3FF),
-                                ],
+                                colors: [Color(0xFFEEF2FF), Color(0xFFF5F3FF)],
                               ),
                               borderRadius: BorderRadius.circular(18),
                               border: Border.all(
-                                color: const Color(0xFF4338CA).withOpacity(0.12),
+                                color: const Color(
+                                  0xFF4338CA,
+                                ).withOpacity(0.12),
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFF4338CA).withOpacity(0.05),
+                                  color: const Color(
+                                    0xFF4338CA,
+                                  ).withOpacity(0.05),
                                   blurRadius: 12,
                                   offset: const Offset(0, 3),
                                 ),
@@ -470,7 +631,9 @@ class _ContactSyncScreenState extends State<ContactSyncScreen> {
                                   width: 46,
                                   height: 46,
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF4338CA).withOpacity(0.10),
+                                    color: const Color(
+                                      0xFF4338CA,
+                                    ).withOpacity(0.10),
                                     borderRadius: BorderRadius.circular(14),
                                   ),
                                   child: const Icon(
@@ -482,7 +645,8 @@ class _ContactSyncScreenState extends State<ContactSyncScreen> {
                                 const SizedBox(width: 14),
                                 const Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         'Invite by Email',
@@ -529,7 +693,9 @@ class _ContactSyncScreenState extends State<ContactSyncScreen> {
                                 vertical: 6,
                               ),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF10B981).withOpacity(0.12),
+                                color: const Color(
+                                  0xFF10B981,
+                                ).withOpacity(0.12),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
@@ -608,9 +774,7 @@ class _ContactSyncScreenState extends State<ContactSyncScreen> {
               : Colors.transparent,
           borderRadius: BorderRadius.circular(14),
           border: contact.selected
-              ? Border.all(
-                  color: const Color(0xFF4338CA).withOpacity(0.15),
-                )
+              ? Border.all(color: const Color(0xFF4338CA).withOpacity(0.15))
               : null,
         ),
         child: Row(

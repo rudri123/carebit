@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'home_screen.dart';
 import 'device_connect_screen.dart';
-import 'fitbit_metrics.dart';
-import 'fitbit_service.dart';
-import 'alerts_screen.dart';
+import 'user_profile_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -30,7 +28,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final displayName =
             user?.displayName ?? user?.email?.split('@').first ?? 'User';
         final email = user?.email ?? 'Not available';
-        final phone = (user?.phoneNumber != null && user!.phoneNumber!.isNotEmpty)
+        final phone =
+            (user?.phoneNumber != null && user!.phoneNumber!.isNotEmpty)
             ? user.phoneNumber!
             : 'Not set';
         final memberSince = user?.metadata.creationTime != null
@@ -228,8 +227,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   String _formatDate(DateTime date) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
@@ -318,6 +327,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final user = FirebaseAuth.instance.currentUser;
       await user?.updateDisplayName(newName);
       await user?.reload();
+      await UserProfileService.instance.syncCurrentUserProfile(user: user);
 
       if (!mounted) return;
 
@@ -355,9 +365,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         content: Text('$featureName coming soon'),
         backgroundColor: const Color(0xFF4338CA),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -371,7 +379,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             content: const Text('Signed out successfully'),
             backgroundColor: Colors.green[600],
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
         Navigator.of(context).pushAndRemoveUntil(
@@ -386,7 +396,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             content: Text('Error signing out: $e'),
             backgroundColor: Colors.red[600],
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
       }
@@ -483,7 +495,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               color: Colors.black.withOpacity(0.18),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
-                            )
+                            ),
                           ],
                         ),
                         child: const Center(
@@ -547,9 +559,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Container(
         decoration: BoxDecoration(
           border: border
-              ? Border(
-                  right: BorderSide(color: Colors.white.withOpacity(0.12)),
-                )
+              ? Border(right: BorderSide(color: Colors.white.withOpacity(0.12)))
               : null,
         ),
         child: Column(
@@ -587,9 +597,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         onPressed: () {
           Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (_) => const DeviceConnectScreen(),
-            ),
+            MaterialPageRoute(builder: (_) => const DeviceConnectScreen()),
           );
         },
         icon: const Icon(
@@ -640,7 +648,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             color: const Color(0xFF4338CA).withOpacity(0.1),
             blurRadius: 24,
             offset: const Offset(0, 4),
-          )
+          ),
         ],
       ),
       child: Column(children: rows),
@@ -670,9 +678,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         decoration: BoxDecoration(
           border: isLast
               ? null
-              : const Border(
-                  bottom: BorderSide(color: Color(0xFFECFDF5)),
-                ),
+              : const Border(bottom: BorderSide(color: Color(0xFFECFDF5))),
         ),
         child: Row(
           children: [
@@ -742,9 +748,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       decoration: BoxDecoration(
         border: isLast
             ? null
-            : const Border(
-                bottom: BorderSide(color: Color(0xFFECFDF5)),
-              ),
+            : const Border(bottom: BorderSide(color: Color(0xFFECFDF5))),
       ),
       child: Row(
         children: [
@@ -788,10 +792,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const Text(
             '›',
-            style: TextStyle(
-              color: Color(0xFFD1D0E0),
-              fontSize: 20,
-            ),
+            style: TextStyle(color: Color(0xFFD1D0E0), fontSize: 20),
           ),
         ],
       ),
@@ -951,7 +952,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       color: Colors.black.withOpacity(0.15),
                       blurRadius: 4,
                       offset: const Offset(0, 2),
-                    )
+                    ),
                   ],
                 ),
               ),
@@ -990,7 +991,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             color: const Color(0xFF4338CA).withOpacity(0.1),
             blurRadius: 24,
             offset: const Offset(0, 4),
-          )
+          ),
         ],
       ),
       child: Column(
@@ -1032,7 +1033,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                 ),
-              ]
+              ],
             ],
           ),
         ],
@@ -1051,7 +1052,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             color: const Color(0xFF4338CA).withOpacity(0.1),
             blurRadius: 24,
             offset: const Offset(0, 4),
-          )
+          ),
         ],
       ),
       child: Column(
