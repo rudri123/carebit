@@ -19,6 +19,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool pushNotificationsEnabled = true;
   bool doNotDisturbEnabled = true;
   bool healthDataEnabled = false;
+  String height = "158 cm";
+  String weight = "58 kg";
+  String bloodType = "B+";
+  double bmi = 23.2;
+  String bmiStatus = "Normal";
 
   @override
   Widget build(BuildContext context) {
@@ -108,33 +113,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       _sectionLabel('HEALTH PROFILE'),
                       const SizedBox(height: 10),
                       _buildHealthGrid(),
-                      const SizedBox(height: 20),
-
-                      _sectionLabel('MY GOALS'),
-                      const SizedBox(height: 10),
-                      _buildInfoCard([
-                        _staticRow(
-                          emoji: '👣',
-                          iconBg: const Color(0xFFFFF1F2),
-                          label: 'Daily Steps',
-                          value: '10,000 steps',
-                          isLast: false,
-                        ),
-                        _staticRow(
-                          emoji: '🔥',
-                          iconBg: const Color(0xFFECFDF5),
-                          label: 'Calorie Burn',
-                          value: '2,000 kcal/day',
-                          isLast: false,
-                        ),
-                        _staticRow(
-                          emoji: '🌙',
-                          iconBg: const Color(0xFFFFF1F2),
-                          label: 'Sleep Goal',
-                          value: '8 hrs/night',
-                          isLast: true,
-                        ),
-                      ]),
                       const SizedBox(height: 20),
 
                       _sectionLabel('SECURITY'),
@@ -233,6 +211,333 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ];
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
+  double _calculateBMI() {
+  try {
+    double heightMeters = 0;
+    double weightKg = 0;
+
+    // HEIGHT
+    if (height.contains('cm')) {
+      final cm = double.parse(
+        height.replaceAll('cm', '').trim(),
+      );
+      heightMeters = cm / 100;
+    } else if (height.contains("ft")) {
+      final feet = double.parse(height.replaceAll('ft', '').trim(),);
+
+      final cm = feet * 30.48;
+      heightMeters = cm / 100;
+    }
+
+    // WEIGHT
+    if (weight.contains('kg')) {
+      weightKg = double.parse(
+        weight.replaceAll('kg', '').trim(),
+      );
+    } else if (weight.contains('lb')) {
+      final pounds = double.parse(
+        weight.replaceAll('lb', '').trim(),
+      );
+
+      weightKg = pounds * 0.453592;
+    }
+
+    if (heightMeters == 0) return 0;
+
+    return weightKg / (heightMeters * heightMeters);
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  Future<void> _editHeight() async {
+  final numberController = TextEditingController();
+
+  String selectedUnit = 'cm';
+
+  final result = await showDialog<String>(
+    context: context,
+    builder: (context) {
+      return StatefulBuilder(
+        builder: (context, setModalState) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: const Text(
+              'Edit Height',
+              style: TextStyle(
+                fontFamily: 'Nunito',
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: numberController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    hintText: 'Enter height',
+                    filled: true,
+                    fillColor: const Color(0xFFF8F7FE),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 14),
+
+                DropdownButtonFormField<String>(
+                  value: selectedUnit,
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'cm',
+                      child: Text('cm'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'ft',
+                      child: Text('ft'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    setModalState(() {
+                      selectedUnit = value!;
+                    });
+                  },
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: const Color(0xFFF8F7FE),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  final value = numberController.text.trim();
+
+                  if (value.isEmpty) return;
+
+                  Navigator.pop(
+                    context,
+                    '$value $selectedUnit',
+                  );
+                },
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+
+  if (result != null) {
+    setState(() {
+      height = result;
+    });
+
+    _updateBMI();
+  }
+}
+
+  void _updateBMI() {
+    final value = _calculateBMI();
+
+    String status = 'Normal';
+
+    if (value < 18.5) {
+      status = 'Underweight';
+    } else if (value >= 25 && value < 30) {
+      status = 'Overweight';
+    } else if (value >= 30) {
+      status = 'Obese';
+    }
+
+    setState(() {
+      bmi = value;
+      bmiStatus = status;
+    });
+  }
+
+Future<void> _editBloodType() async {
+  final bloodTypes = [
+    'A+',
+    'A-',
+    'B+',
+    'B-',
+    'AB+',
+    'AB-',
+    'O+',
+    'O-',
+  ];
+
+  String selected = bloodType;
+
+  final result = await showDialog<String>(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: const Text(
+          'Select Blood Type',
+          style: TextStyle(
+            fontFamily: 'Nunito',
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        content: DropdownButtonFormField<String>(
+          value: selected,
+          items: bloodTypes.map((type) {
+            return DropdownMenuItem(
+              value: type,
+              child: Text(type),
+            );
+          }).toList(),
+          onChanged: (value) {
+            selected = value!;
+          },
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: const Color(0xFFF8F7FE),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context, selected);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      );
+    },
+  );
+
+  if (result != null) {
+    setState(() {
+      bloodType = result;
+    });
+  }
+}
+
+  Future<void> _editWeight() async {
+  final numberController = TextEditingController();
+
+  String selectedUnit = 'kg';
+
+  final result = await showDialog<String>(
+    context: context,
+    builder: (context) {
+      return StatefulBuilder(
+        builder: (context, setModalState) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: const Text(
+              'Edit Weight',
+              style: TextStyle(
+                fontFamily: 'Nunito',
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: numberController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    hintText: 'Enter weight',
+                    filled: true,
+                    fillColor: const Color(0xFFF8F7FE),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 14),
+
+                DropdownButtonFormField<String>(
+                  value: selectedUnit,
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'kg',
+                      child: Text('kg'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'lb',
+                      child: Text('lb'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    setModalState(() {
+                      selectedUnit = value!;
+                    });
+                  },
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: const Color(0xFFF8F7FE),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  final value = numberController.text.trim();
+
+                  if (value.isEmpty) return;
+
+                  Navigator.pop(
+                    context,
+                    '$value $selectedUnit',
+                  );
+                },
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+
+  if (result != null) {
+    setState(() {
+      weight = result;
+    });
+
+    _updateBMI();
+  }
+}
 
   Future<void> _editFullName(String currentName) async {
     final controller = TextEditingController(text: currentName);
@@ -963,139 +1268,190 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildHealthGrid() {
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 10,
-      mainAxisSpacing: 10,
-      childAspectRatio: 2.2,
-      children: [
-        _healthCard('HEIGHT', "5'4\"", 'ft'),
-        _healthCard('WEIGHT', '58', 'kg'),
-        _healthCard('BLOOD TYPE', 'B+', ''),
-        _healthCardBmi('BMI', '21.8', 'Normal'),
-      ],
+  return GridView.count(
+    crossAxisCount: 2,
+    shrinkWrap: true,
+    physics: const NeverScrollableScrollPhysics(),
+    crossAxisSpacing: 10,
+    mainAxisSpacing: 10,
+    childAspectRatio: 2.2,
+    children: [
+      _editableHealthCard(
+        label: 'HEIGHT',
+        value: height,
+        unit: '',
+        onTap: _editHeight,
+      ),
+
+      _editableHealthCard(
+        label: 'WEIGHT',
+        value: weight,
+        unit: '',
+        onTap: _editWeight,
+      ),
+
+      _editableHealthCard(
+        label: 'BLOOD TYPE',
+        value: bloodType,
+        unit: '',
+        onTap: _editBloodType,
+      ),
+
+      _editableBmiCard(),
+    ],
+  );
+}
+
+  Widget _editableHealthCard({
+  required String label,
+  required String value,
+  required String unit,
+  required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF4338CA).withOpacity(0.1),
+              blurRadius: 24,
+              offset: const Offset(0, 4),
+            )
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontFamily: 'DM Sans',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 9.5,
+                    color: Color(0xFF6B7280),
+                  ),
+                ),
+                const Icon(
+                  Icons.edit_rounded,
+                  size: 14,
+                  color: Color(0xFF4338CA),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 4),
+
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontFamily: 'Nunito',
+                    fontWeight: FontWeight.w900,
+                    fontSize: 17,
+                    color: Color(0xFF1E1B4B),
+                  ),
+                ),
+                if (unit.isNotEmpty) ...[
+                  const SizedBox(width: 3),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Text(
+                      unit,
+                      style: const TextStyle(
+                        fontFamily: 'DM Sans',
+                        fontSize: 10,
+                        color: Color(0xFF6B7280),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _healthCard(String label, String value, String unit) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF4338CA).withOpacity(0.1),
-            blurRadius: 24,
-            offset: const Offset(0, 4),
-          )
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontFamily: 'DM Sans',
-              fontWeight: FontWeight.w700,
-              fontSize: 9.5,
-              color: Color(0xFF6B7280),
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                value,
-                style: const TextStyle(
-                  fontFamily: 'Nunito',
-                  fontWeight: FontWeight.w900,
-                  fontSize: 17,
-                  color: Color(0xFF1E1B4B),
+  Widget _editableBmiCard() {
+    return GestureDetector(
+      onTap: () {},
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF4338CA).withOpacity(0.1),
+              blurRadius: 24,
+              offset: const Offset(0, 4),
+            )
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: const [
+                Text(
+                  'BMI',
+                  style: TextStyle(
+                    fontFamily: 'DM Sans',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 9.5,
+                    color: Color(0xFF6B7280),
+                  ),
                 ),
-              ),
-              if (unit.isNotEmpty) ...[
-                const SizedBox(width: 2),
+                Icon(
+                  Icons.edit_rounded,
+                  size: 14,
+                  color: Color(0xFF4338CA),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 4),
+
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  bmi.toStringAsFixed(1),
+                  style: const TextStyle(
+                    fontFamily: 'Nunito',
+                    fontWeight: FontWeight.w900,
+                    fontSize: 17,
+                    color: Color(0xFF1E1B4B),
+                  ),
+                ),
+                const SizedBox(width: 4),
                 Padding(
                   padding: const EdgeInsets.only(bottom: 2),
                   child: Text(
-                    unit,
+                    bmiStatus,
                     style: const TextStyle(
-                      fontFamily: 'DM Sans',
-                      fontSize: 10,
-                      color: Color(0xFF6B7280),
+                      fontFamily: 'Nunito',
+                      fontWeight: FontWeight.w700,
+                      fontSize: 9,
+                      color: Color(0xFF10B981),
                     ),
                   ),
                 ),
-              ]
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _healthCardBmi(String label, String value, String status) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF4338CA).withOpacity(0.1),
-            blurRadius: 24,
-            offset: const Offset(0, 4),
-          )
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontFamily: 'DM Sans',
-              fontWeight: FontWeight.w700,
-              fontSize: 9.5,
-              color: Color(0xFF6B7280),
-              letterSpacing: 0.5,
+              ],
             ),
-          ),
-          const SizedBox(height: 3),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                value,
-                style: const TextStyle(
-                  fontFamily: 'Nunito',
-                  fontWeight: FontWeight.w900,
-                  fontSize: 17,
-                  color: Color(0xFF1E1B4B),
-                ),
-              ),
-              const SizedBox(width: 4),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: Text(
-                  status,
-                  style: const TextStyle(
-                    fontFamily: 'Nunito',
-                    fontWeight: FontWeight.w700,
-                    fontSize: 9,
-                    color: Color(0xFF10B981),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
